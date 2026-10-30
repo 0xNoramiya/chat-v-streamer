@@ -1,4 +1,6 @@
 import type {Store} from '../db.js';
+import {retrieve} from '../ai/retrieval.js';
+import {localSafe} from '../ai/moderation.js';
 import {config} from '../config.js';
 import type {AIService} from '../ai/service.js';
 import {fallbackVerdict} from '../ai/service.js';
@@ -66,7 +68,7 @@ export class CourtRunner {
   case 'sfx':this.onEvent({type:'sfx',name:effect.name});break;
   case 'switchScene':await this.obs.enterCourt(this.settings.obsCourtScene);break;
   case 'restoreScene':await this.obs.restore();break;
-  case 'callRebuttal':if(t){const result=await this.ai.rebuttal(this.getCase(t.caseId),t.exhibits.filter(e=>!e.struck),this.captureDefense(t),this.candidates());if(this.state.trial?.caseId===t.caseId)this.dispatch({type:'REBUTTAL_READY',result,exhibit:result.new_exhibit?this.exhibit(result.new_exhibit,'rebuttal'):undefined,now:this.clock.now()})}break;
+  case 'callRebuttal':if(t){const result=await this.ai.rebuttal(this.getCase(t.caseId),t.exhibits.filter(e=>!e.struck),this.captureDefense(t),this.candidates().filter(s=>!t.exhibits.some(e=>e.struck&&e.segment_id===s.id)));if(this.state.trial?.caseId===t.caseId)this.dispatch({type:'REBUTTAL_READY',result,exhibit:result.new_exhibit?this.exhibit(result.new_exhibit,'rebuttal'):undefined,now:this.clock.now()})}break;
   case 'callVerdict':if(t){const c=this.getCase(t.caseId),votes=tally(t.votes),allowed=allowedSentences(this.settings,t);const result=await this.ai.verdict(c,votes.verdict,votes,t.exhibits.filter(e=>!e.struck),t.defense_text,allowed);if(this.state.trial?.caseId===t.caseId)this.dispatch({type:'VERDICT_READY',result,now:this.clock.now()})}break;
   case 'executeSentence':if(t){const current=this.state.trial;if(!current||current.caseId!==t.caseId)break;current.verdictScript??=fallbackVerdict(t.verdict!,allowedSentences(this.settings,t));const c=this.getCase(t.caseId);await this.sentencer.execute(current,this.settings,this.users.get(c.plaintiff_id)??{id:c.plaintiff_id,login:c.plaintiff_login},this.clock.now());this.onChange()}break;
   case 'savePrecedent':if(t)this.finish(t);break;
@@ -75,7 +77,7 @@ export class CourtRunner {
   case 'showExhibit':break;
  }}
  getCase(id:number){const c=this.cases().find(x=>x.id===id);if(!c)throw Error('Case not found');return c}
- candidates():Segment[]{return this.store.segments().filter(s=>s.session_id===this.store.sessionId).reverse()}
+ candidates(hints:string[]=[]):Segment[]{return retrieve(this.store,hints,this.clock.now())}
  exhibit(pick:{segment_id:string;framing:string},added_in:Exhibit['added_in']):Exhibit|undefined{const s=this.store.segment(pick.segment_id);if(!s)return undefined;return {...pick,text:s.text,timestamp:s.timestamp,frame_url:null,struck:false,added_in}}
  async file(user:User,charge:string,skipCosign=false){const error=filingError(charge,user.id,this.cases(),this.settings,this.clock.now());if(error){await this.twitch.sendChat(error);return null}
   const now=this.clock.now(),count=this.store.get<{n:number}>('SELECT COUNT(*) n FROM cases')!.n+1;const threshold=cosignThreshold(this.uniqueChatters(),this.settings);
@@ -97,15 +99,15 @@ export class CourtRunner {
    case 'record':{const convictions=this.cases().filter(c=>c.verdict==='guilty');await this.twitch.sendChat(`${convictions.length} convictions. ${convictions.slice(0,3).map(c=>c.name).join(' | ')}`);break}
   }this.onChange();
  }
- async screen(id:number){const c=this.getCase(id);const result=await this.ai.clerk(c.raw_charge!,this.cases().filter(x=>x.id!==id&&openStatuses.includes(x.status)).map(x=>x.short_title));
+ async screen(id:number){const c=this.getCase(id);this.store.updateCase(id,{raw_flagged:+!localSafe(c.raw_charge!)});const result=await this.ai.clerk(c.raw_charge!,this.cases().filter(x=>x.id!==id&&openStatuses.includes(x.status)).map(x=>x.short_title));
   this.store.updateCase(id,{formal_charge:result.formal_charge,short_title:result.short_title,category:result.category,search_hints_json:JSON.stringify(result.search_hints),reject_reason:result.admissible?null:result.reason_code,status:result.admissible?(this.settings.autoApprove?'queued':'pending_approval'):'rejected'});
   if(result.admissible)await this.prepare(id);else await this.twitch.sendChat(`Case #${c.case_no} dismissed: outside this court's jurisdiction.`);this.onChange();
  }
- async prepare(id:number){const c=this.getCase(id),candidates=this.candidates();const script=await this.ai.trial(c,candidates);const ids=new Set(candidates.map(s=>s.id));const exhibits=script.exhibits.filter(e=>ids.has(e.segment_id)).slice(0,3).map(e=>this.exhibit(e,'opening')).filter((e):e is Exhibit=>!!e);
+ async prepare(id:number){const c=this.getCase(id),candidates=this.candidates(c.search_hints);const script=await this.ai.trial(c,candidates);const ids=new Set(candidates.map(s=>s.id));const exhibits=script.exhibits.filter(e=>ids.has(e.segment_id)).slice(0,3).map(e=>this.exhibit(e,'opening')).filter((e):e is Exhibit=>!!e);
   if(!script.has_case||!exhibits.length){this.store.updateCase(id,{status:'dismissed',reject_reason:'insufficient_evidence'});await this.twitch.sendChat('The prosecution has nothing. Case dismissed.');this.onChange();return}
-  script.exhibits=script.exhibits.filter(e=>exhibits.some(x=>x.segment_id===e.segment_id));this.prepared.set(id,{script,exhibits});this.store.saveExhibits(id,exhibits);
+  script.exhibits=script.exhibits.filter(e=>exhibits.some(x=>x.segment_id===e.segment_id));this.store.saveExhibits(id,exhibits);
   if(this.ai.speak&&this.settings.tts)await Promise.allSettled([this.ai.speak(script.opening_line,'Judge Docket'),this.ai.speak(script.defense_prompt,'Judge Docket'),...script.exhibit_lines.map(line=>this.ai.speak!(line,'D.A. Receipts'))]);
-  this.onChange();
+  if(['queued','pending_approval'].includes(this.getCase(id).status))this.prepared.set(id,{script,exhibits});this.onChange();
  }
  approve(id:number,approve:boolean){const c=this.cases().find(c=>c.case_no===id);if(!c||!['pending_approval','queued'].includes(c.status))return;this.store.updateCase(c.id,{status:approve?'queued':'rejected',reject_reason:approve?null:'streamer_veto'});this.onChange()}
  startNext(){if(this.state.trial||!this.settings.courtOn||this.clock.now()<this.state.cooldownUntil)return;const c=this.cases().reverse().find(c=>c.status==='queued'&&this.prepared.has(c.id));if(!c)return;const prepared=this.prepared.get(c.id)!;this.store.updateCase(c.id,{status:'in_trial',trial_started_at_ms:this.clock.now()});this.dispatch({type:'START',caseId:c.id,name:c.name,formalCharge:c.formal_charge,...prepared,now:this.clock.now()})}

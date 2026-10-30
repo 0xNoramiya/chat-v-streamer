@@ -9,12 +9,12 @@ import {Store} from './db.js';
 import {CourtRunner} from './court/runner.js';
 import {SimTwitch,simUser} from './adapters/twitch/sim.js';
 import {SimObs} from './adapters/obs/sim.js';
-import {CannedAI} from './ai/service.js';
+import {CourtAI} from './ai/courtAI.js';
 import {attachWS} from './ws.js';
 const logger=pino({redact:['req.headers.authorization','token','accessToken','refreshToken']});
 const store=new Store();let runner:CourtRunner;
 const log=(kind:string,message:string)=>{logger.info({kind},message);runner?.log(kind,message)};
-const twitch=new SimTwitch(log),obs=new SimObs(log),ai=new CannedAI();
+const twitch=new SimTwitch(log),obs=new SimObs(log),ai=new CourtAI(store,log);
 runner=new CourtRunner(store,twitch,obs,ai);
 const app=express(),server=createServer(app);app.disable('x-powered-by');app.use(express.json({limit:'64kb'}));
 app.use((req,res,next)=>{const origin=req.headers.origin;if(origin){try{const url=new URL(origin);if(!['localhost','127.0.0.1','[::1]'].includes(url.hostname))return res.status(403).json({error:'Local control only.'})}catch{return res.status(403).end()}}next()});
@@ -22,7 +22,7 @@ app.get('/api/state',(req,res)=>res.json(runner.snapshot(req.query.role!=='overl
 app.post('/api/chat',async(req,res)=>{const body=z.object({user:z.string().regex(/^(viewer[1-8]|broadcaster|mod1|vip1)$/),text:z.string().max(500)}).parse(req.body);await runner.chat(simUser(body.user),body.text);res.json({ok:true})});
 app.post('/api/demo',async(_req,res)=>res.json({id:await runner.demo()}));
 app.post('/api/action',(req,res)=>{const action=z.object({type:z.enum(['MISTRIAL','SKIP','SERVED','START','STRIKE','APPROVE','VETO']),id:z.number().optional(),index:z.number().int().min(0).max(3).optional()}).parse(req.body);if(action.type==='START')runner.startNext();else if(action.type==='APPROVE'||action.type==='VETO')runner.approve(action.id!,action.type==='APPROVE');else if(action.type==='STRIKE')runner.dispatch({type:'STRIKE',index:action.index!,now:Date.now()});else runner.dispatch({type:action.type,now:Date.now()});res.json({ok:true})});
-app.post('/api/settings',(req,res)=>{runner.updateSettings(settingsSchema.parse(req.body));res.json({ok:true})});
+app.post('/api/settings',async(req,res)=>{const settings=settingsSchema.parse(req.body);if(!await ai.moderator.safe(settings.penalCode.map(p=>p.text).join(' ')))throw Error('Penal code did not pass moderation.');runner.updateSettings(settings);res.json({ok:true})});
 app.post('/api/transcript',(req,res)=>{const body=z.object({text:z.string().min(1).max(2000)}).parse(req.body);res.json(runner.addSegment(body.text,Date.now(),Date.now(),'manual'))});
 for(const dir of ['tts','frames']){mkdirSync(`data/${dir}`,{recursive:true});app.use(`/${dir}`,express.static(resolve(`data/${dir}`)))}
 if(existsSync('web/dist/index.html')){app.use(express.static(resolve('web/dist')));app.get(['/','/panel','/overlay'],(_req,res)=>res.sendFile(resolve('web/dist/index.html')))}else app.get('/',(_req,res)=>res.redirect('http://localhost:5173/panel'));

@@ -1,0 +1,10 @@
+# Local deny terms, matched at word boundaries. Extend for your channel.
+nigger
+nigga
+faggot
+retard
+rape
+porn
+suicide
+dox
+kill yourself
