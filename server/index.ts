@@ -3,6 +3,8 @@ import {createServer} from 'node:http';
 import {resolve} from 'node:path';
 import {existsSync,mkdirSync} from 'node:fs';
 import pino from 'pino';
+import multer from 'multer';
+import {chunkTiming,transcribe} from './adapters/transcript/ingest.js';
 import {z} from 'zod';
 import {config,settingsSchema} from './config.js';
 import {Store} from './db.js';
@@ -23,6 +25,8 @@ app.post('/api/chat',async(req,res)=>{const body=z.object({user:z.string().regex
 app.post('/api/demo',async(_req,res)=>res.json({id:await runner.demo()}));
 app.post('/api/action',(req,res)=>{const action=z.object({type:z.enum(['MISTRIAL','SKIP','SERVED','START','STRIKE','APPROVE','VETO']),id:z.number().optional(),index:z.number().int().min(0).max(3).optional()}).parse(req.body);if(action.type==='START')runner.startNext();else if(action.type==='APPROVE'||action.type==='VETO')runner.approve(action.id!,action.type==='APPROVE');else if(action.type==='STRIKE')runner.dispatch({type:'STRIKE',index:action.index!,now:Date.now()});else runner.dispatch({type:action.type,now:Date.now()});res.json({ok:true})});
 app.post('/api/settings',async(req,res)=>{const settings=settingsSchema.parse(req.body);if(!await ai.moderator.safe(settings.penalCode.map(p=>p.text).join(' ')))throw Error('Penal code did not pass moderation.');runner.updateSettings(settings);res.json({ok:true})});
+const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:5*1024*1024,files:1,fields:2},fileFilter:(_req,file,cb)=>cb(null,/^audio\/(webm|ogg|mp4|wav|x-wav|mpeg)/.test(file.mimetype))});
+app.post('/api/transcribe',upload.single('audio'),async(req,res)=>{if(!ai.client)return res.status(503).json({error:'Set OPENAI_API_KEY to transcribe mic audio. Manual lines work offline.'});if(!req.file)throw Error('A standalone audio chunk is required.');const timing=chunkTiming(req.body,Date.now());const text=await transcribe(ai.client.sdk,req.file.buffer,req.file.mimetype);res.json(text?runner.addSegment(text,timing.started_at_ms,timing.ended_at_ms,'mic'):{skipped:true})});
 app.post('/api/transcript',(req,res)=>{const body=z.object({text:z.string().min(1).max(2000)}).parse(req.body);res.json(runner.addSegment(body.text,Date.now(),Date.now(),'manual'))});
 for(const dir of ['tts','frames']){mkdirSync(`data/${dir}`,{recursive:true});app.use(`/${dir}`,express.static(resolve(`data/${dir}`)))}
 if(existsSync('web/dist/index.html')){app.use(express.static(resolve('web/dist')));app.get(['/','/panel','/overlay'],(_req,res)=>res.sendFile(resolve('web/dist/index.html')))}else app.get('/',(_req,res)=>res.redirect('http://localhost:5173/panel'));

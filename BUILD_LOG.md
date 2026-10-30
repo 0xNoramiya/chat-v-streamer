@@ -30,3 +30,10 @@
 +- Decisions: when moderation is unavailable in live AI mode, generated content fails closed to original canned lines. Offline clerk is deliberately conservative. Invalid evidence dismisses; invalid sentence IDs fall back to an approved severity-appropriate sentence.
 +- Validation: 15 tests pass including invalid IDs, invalid precedents, length bounds, local moderation and cross-session FTS; complete offline demo and production build pass. Real API execution requires user credentials and has not been represented as tested.
 +- Codex wrote integrations after inspecting installed declarations; upgraded Zod to address the dependency audit. A Vitest upgrade is in progress to address its audit findings.
+
+## M3 — Transcription
++- Added MediaRecorder restart-per-chunk capture, RMS silence skipping, bounded pending uploads, multipart size/type/timestamp validation, official SDK transcription and live transcript broadcasts.
++- Manual lines work offline. Mic uploads explain the missing OpenAI key; no fake transcription is generated.
++- Defense uses actual phase entry/exit times, including skipped phases; late chunks are captured based on recording start time rather than arrival time.
++- Validation: 17 tests, complete offline demo, strict build all pass. Mic hardware/API requires credentials and browser permission. Installed Vitest latest passed but declared newer Node engines; pinning the audited v4 release to preserve Node 20 support.
++- Codex implemented browser recording and ingestion after reading the installed transcription declarations.
