@@ -2,16 +2,21 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../shared/client';
 import { comedyPack, type ComedyCommand, type ComedySnapshot } from '../shared/comedy';
 import './comedyDesk.css';
+import { HeadCalibration } from './HeadCalibration';
+import { effectGeometry } from '../shared/comedyGeometry';
+import type { Settings } from '../shared/types';
 export function ComedyDesk({
   state,
   now,
   connected,
   run,
+  camera,
 }: {
   state: ComedySnapshot;
   now: number;
   connected: boolean;
   run: (fn: () => Promise<unknown>) => Promise<void>;
+  camera: Settings['webcam'];
 }) {
   const [selected, setSelected] = useState('silly_hat'),
     [muted, setMuted] = useState(state.sound.muted),
@@ -50,7 +55,29 @@ export function ComedyDesk({
         {comedyPack.effects.map((e) => (
           <button
             key={e.id}
-            disabled={!connected || (state.cooldowns[e.id] ?? 0) > now}
+            disabled={
+              !connected ||
+              (state.cooldowns[e.id] ?? 0) > now ||
+              (e.kind === 'transient' && !!state.sequence) ||
+              (e.target !== 'camera' &&
+                (!state.calibrated ||
+                  !effectGeometry(
+                    e,
+                    state.placements[e.id] ?? e.placement,
+                    state.calibration,
+                    camera,
+                  ).fits))
+            }
+            title={
+              e.target === 'camera'
+                ? e.label
+                : effectGeometry(
+                    e,
+                    state.placements[e.id] ?? e.placement,
+                    state.calibration,
+                    camera,
+                  ).guidance || e.label
+            }
             onClick={() => void send({ action: 'trigger', effectId: e.id })}
             aria-label={`Trigger ${e.label}`}
           >
@@ -60,6 +87,54 @@ export function ComedyDesk({
           </button>
         ))}
       </div>
+      <button
+        className="bonk-sequence"
+        disabled={
+          !connected ||
+          !state.calibrated ||
+          !!state.sequence ||
+          (state.cooldowns.bonk_stars ?? 0) > now ||
+          ['bonk', 'seeing_stars'].some((id) => {
+            const e = comedyPack.effects.find((e) => e.id === id)!;
+            return !effectGeometry(
+              e,
+              state.placements[id] ?? e.placement,
+              state.calibration,
+              camera,
+            ).fits;
+          })
+        }
+        onClick={() => void send({ action: 'sequence', sequenceId: 'bonk_stars' })}
+      >
+        BONK → stars
+      </button>
+      {state.sequence && (
+        <p role="status" className="sequence-status">
+          Anticipation → impact → stunned beat → stars · Clear all cancels the sequence.
+        </p>
+      )}
+      {!state.calibrated && (
+        <p role="status" className="headroom-warning">
+          Save head calibration below before using the hat, BONK or stars. No head position is
+          guessed.
+        </p>
+      )}
+      {comedyPack.effects
+        .filter((e) => e.target !== 'camera')
+        .map((e) => {
+          const fit = effectGeometry(
+            e,
+            state.placements[e.id] ?? e.placement,
+            state.calibration,
+            camera,
+          );
+          return fit.fits ? null : (
+            <p className="headroom-warning" key={e.id}>
+              {fit.guidance}
+            </p>
+          );
+        })}
+      <HeadCalibration state={state} camera={camera} run={run} />
       <div className="comedy-controls">
         <form
           className="prop-placement"
@@ -162,8 +237,8 @@ export function ComedyDesk({
         </div>
       </div>
       <p className="comedy-hint">
-        Hat and cloud stay until removed. Position is relative to your camera. One big gag at a
-        time; no automatic cues.
+        Hat and cloud stay until removed. For head props, 50% / 50% uses the calibrated anchor;
+        offsets and scale are optional. One big gag at a time; no automatic cues.
       </p>
     </section>
   );

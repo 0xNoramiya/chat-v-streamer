@@ -130,3 +130,132 @@
     display: none;
   }
 }
+.bonk-sequence {
+  width: 100%;
+  margin-top: 12px;
+  background: #243f35;
+  color: #fff9e8;
+  border-color: #b58b42;
+}
+.sequence-status {
+  color: #67736b;
+  font-size: 12px;
+}
+.head-calibration {
+  margin-top: 16px;
+  border-top: 1px solid #deded1;
+  padding-top: 14px;
+}
+.head-calibration summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 8px 0;
+}
+.head-calibration p,
+.head-calibration small {
+  font-size: 12px;
+  line-height: 1.5;
+}
+.head-calibration small {
+  display: block;
+  color: #67736b;
+  margin-top: 8px;
+}
+.calibration-media {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+.calibration-media > label {
+  width: 100%;
+}
+.calibration-media button {
+  font-size: 12px;
+  flex: 1;
+}
+.calibration-preview {
+  position: relative;
+  width: 100%;
+  background: #243b38;
+  overflow: hidden;
+  border: 2px solid #b58b42;
+  touch-action: none;
+}
+.calibration-camera {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.calibration-guide {
+  position: absolute;
+  inset: 25% 10%;
+  color: #cbd0bc;
+  text-align: center;
+  font-size: 12px;
+}
+.calibration-hat {
+  position: absolute;
+  pointer-events: none;
+}
+.calibration-preview .calibration-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+  padding: 0;
+  border: 3px solid #fff8e7;
+  border-radius: 50%;
+  background: #b58b42;
+  cursor: grab;
+  touch-action: none;
+  z-index: 2;
+}
+.calibration-marker span {
+  position: absolute;
+  top: 100%;
+  background: #172d2bee;
+  color: #fff8e7;
+  font: 10px Arial;
+  padding: 3px;
+  white-space: nowrap;
+}
+.calibration-preview .marker-contact {
+  background: #ba3b32;
+  border-radius: 3px;
+}
+.calibration-preview .marker-width {
+  background: #507c68;
+  width: 26px;
+  height: 26px;
+  min-height: 26px;
+}
+.head-width-guide {
+  position: absolute;
+  height: 2px;
+  border-top: 2px dashed #dfbc7c;
+}
+.calibration-values {
+  display: block;
+  font-size: 11px;
+  margin: 10px 0;
+}
+.headroom-warning {
+  font-size: 12px;
+  line-height: 1.4;
+  padding: 9px;
+  color: #8b3831;
+  background: #fff2df;
+  border-left: 3px solid #b58b42;
+}
+.calibration-media input {
+  width: 100%;
+  min-width: 0;
+}
+.head-calibration > label {
+  margin-bottom: 10px;
+}

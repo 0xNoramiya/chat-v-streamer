@@ -15,7 +15,8 @@
     "demo:check": "tsx scripts/demo-check.ts",
     "format": "prettier --write server web/src scripts tests *.ts *.md",
     "format:check": "prettier --check server web/src scripts tests *.ts *.md",
-    "browser:check": "tsx scripts/browser-check.ts"
+    "browser:check": "tsx scripts/browser-check.ts",
+    "rehearsal:check": "tsx scripts/rehearsal-check.ts"
   },
   "dependencies": {
     "@twurple/api": "^7.3.0",

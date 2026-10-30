@@ -46,6 +46,13 @@ Complete M1–M6 in order, append decisions/validation/Codex usage to BUILD_LOG.
 
 - `web/public/comedy/manifest.json` is the validated pack definition; production transparent PNGs, provenance and art direction live beside it. One generic overlay renderer uses animation presets. New local assets should reuse those presets.
 - `server/comedy/desk.ts` owns a separate state domain. Never use comedy to change court state, jury votes, approval, sentencing or DRY_RUN. The runtime settings table stores attachments, placement and sound separately from court settings.
-- Transients exist only as unique timed events, never reconnect snapshots or persisted queues. Clear epochs invalidate late events; expired events are discarded. One large gag/two total transients maximum. Mistrials clear transients; Clear all also removes props.
+- Transients exist only as unique timed events, never reconnect snapshots or persisted queues. Clear epochs invalidate late events; expired events are discarded. One large gag/two total transients maximum. Mistrial and Clear all remove current gags/props and cancel future sequence steps; calibration and preferences remain saved.
 - Actual alpha is required. Generated RGB checkerboards must be removed and verified before shipping. `browser:check` uses real panel controls for every effect, reconnect/removal and cleanup; camera pixels must return to alpha zero with no effects DOM layer.
 - Veto is allowed throughout pretrial. Guard every asynchronous moderation/clerk/script boundary against a changed status. Approval remains gated behind successful screening.
+
+## Head calibration and sequences
+
+- Comedy calibration stores normalized crown/contact coordinates, head width and an explicit saved-calibration flag under the comedy settings key, independent of court settings. Head triggers remain unavailable until that flag is set by the user. No face tracking. Camera preview files stay in-browser; production cannot depend on ignored rehearsal artifacts.
+- Asset dimensions, anchors, target, size basis and impact timing are manifest data. `web/src/shared/comedyGeometry.ts` is shared by panel/server/overlay. A hat attaches by its brim; never hide insufficient headroom by cropping or silently shrinking a head prop. Show reframing guidance instead.
+- Sequence scheduling belongs to `server/comedy/desk.ts` with an injected clock. Future steps are never persisted. Clear/mistrial/shutdown cancel scheduled callbacks. Initial WebSocket snapshots identify reconnects; clients joining mid-sequence ignore its future steps.
+- `npm run rehearsal:check -- /path/to/streamer.mp4` uses a local video fixture and FFmpeg to produce an ignored before/after recording with captured WebAudio. It never changes production assets or your database. Default fixture: `artifacts/streamer-rehearsal/streamer.mp4` when available.

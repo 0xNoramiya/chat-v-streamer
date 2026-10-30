@@ -10,7 +10,19 @@
 }
 .comedy-position {
   position: absolute;
+}
+.comedy-impact {
+  position: absolute;
   transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.comedy-fit-warning {
+  position: absolute;
+  margin: 0;
+  background: #172d2bee;
+  padding: 6px 10px;
+  color: #f4e8cd;
+  font: 14px/1.2 Arial;
 }
 .comedy-sprite {
   display: block;

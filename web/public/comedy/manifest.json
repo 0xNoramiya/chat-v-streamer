@@ -18,24 +18,66 @@
         "x": 0.5,
         "y": 0.48,
         "scale": 1
+      },
+      "dimensions": {
+        "w": 924,
+        "h": 907
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "target": "camera",
+      "sizeBasis": "camera",
+      "targetOffset": {
+        "x": 0,
+        "y": 0
       }
     },
     {
       "id": "bonk",
       "label": "BONK",
-      "asset": "/comedy/bonk.png",
+      "asset": "/comedy/bonk-mallet.png",
       "kind": "transient",
-      "durationMs": 1600,
+      "durationMs": 1400,
       "animation": "swing",
       "sound": "bonk",
-      "soundAtMs": 400,
+      "soundAtMs": 600,
       "cooldownMs": 3000,
       "large": true,
-      "widthRatio": 0.54,
+      "widthRatio": 1.25,
       "placement": {
-        "x": 0.72,
-        "y": 0.4,
+        "x": 0.5,
+        "y": 0.5,
         "scale": 1
+      },
+      "dimensions": {
+        "w": 906,
+        "h": 924
+      },
+      "anchor": {
+        "x": 0.48,
+        "y": 0.97
+      },
+      "target": "contact",
+      "sizeBasis": "head",
+      "targetOffset": {
+        "x": 0,
+        "y": 0
+      },
+      "impact": {
+        "asset": "/comedy/bonk-burst.png",
+        "atMs": 600,
+        "durationMs": 240,
+        "widthRatio": 0.75,
+        "anchor": {
+          "x": 0.5,
+          "y": 0.5
+        },
+        "dimensions": {
+          "w": 924,
+          "h": 894
+        }
       }
     },
     {
@@ -49,11 +91,25 @@
       "soundAtMs": 160,
       "cooldownMs": 5000,
       "large": false,
-      "widthRatio": 0.62,
+      "widthRatio": 1.9,
       "placement": {
         "x": 0.5,
-        "y": 0.26,
+        "y": 0.5,
         "scale": 1
+      },
+      "dimensions": {
+        "w": 924,
+        "h": 494
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "target": "crown",
+      "sizeBasis": "head",
+      "targetOffset": {
+        "x": 0,
+        "y": 0.15
       }
     },
     {
@@ -67,11 +123,25 @@
       "soundAtMs": 250,
       "cooldownMs": 1000,
       "large": false,
-      "widthRatio": 0.4,
+      "widthRatio": 1.4,
       "placement": {
         "x": 0.5,
-        "y": 0.33,
+        "y": 0.5,
         "scale": 1
+      },
+      "dimensions": {
+        "w": 915,
+        "h": 924
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.86
+      },
+      "target": "crown",
+      "sizeBasis": "head",
+      "targetOffset": {
+        "x": 0,
+        "y": 0
       }
     },
     {
@@ -90,6 +160,20 @@
         "x": 0.83,
         "y": 0.25,
         "scale": 1
+      },
+      "dimensions": {
+        "w": 709,
+        "h": 747
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "target": "camera",
+      "sizeBasis": "camera",
+      "targetOffset": {
+        "x": 0,
+        "y": 0
       }
     },
     {
@@ -108,7 +192,38 @@
         "x": 0.5,
         "y": 0.65,
         "scale": 1
+      },
+      "dimensions": {
+        "w": 924,
+        "h": 587
+      },
+      "anchor": {
+        "x": 0.5,
+        "y": 0.5
+      },
+      "target": "camera",
+      "sizeBasis": "camera",
+      "targetOffset": {
+        "x": 0,
+        "y": 0
       }
+    }
+  ],
+  "sequences": [
+    {
+      "id": "bonk_stars",
+      "label": "BONK \u2192 stars",
+      "cooldownMs": 6200,
+      "steps": [
+        {
+          "effectId": "bonk",
+          "atMs": 0
+        },
+        {
+          "effectId": "seeing_stars",
+          "atMs": 1250
+        }
+      ]
     }
   ]
 }

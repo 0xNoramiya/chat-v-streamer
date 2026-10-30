@@ -98,6 +98,7 @@ export class CourtRunner {
         ),
       (event) => this.onEvent(event),
       () => this.onChange(),
+      { camera: () => this.settings.webcam, clock },
     );
     twitch.onStreamInfo = (info) => this.adoptBroadcast(info);
     twitch.onMessage = (u, text) => {
@@ -130,6 +131,7 @@ export class CourtRunner {
   }
   close() {
     this.closed = true;
+    this.comedy.close();
     this.speech.close();
     if (this.timer) this.clock.clearInterval(this.timer);
     this.twitch.close?.();
@@ -297,7 +299,7 @@ export class CourtRunner {
       (event.type === 'MISTRIAL' ||
         (event.type === 'TICK' && event.now - previous.startedAt >= 180000))
     ) {
-      this.comedy.clear(true);
+      this.comedy.clear(false);
       this.store.updateCase(previous.caseId, {
         status: 'mistrial',
         verdict: 'mistrial',
@@ -311,7 +313,7 @@ export class CourtRunner {
         verdictScript: fallbackVerdict('mistrial', []),
       });
     }
-    if (t?.verdict === 'mistrial' && previous?.verdict !== 'mistrial') this.comedy.clear(true);
+    if (t?.verdict === 'mistrial' && previous?.verdict !== 'mistrial') this.comedy.clear(false);
     if (t) {
       this.store.saveExhibits(t.caseId, t.exhibits);
       if (event.type === 'VOTE' && t.phase === 'JURY' && event.now < t.deadline)

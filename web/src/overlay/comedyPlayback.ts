@@ -10,12 +10,20 @@ export class ComedyPlayback {
   private epoch = '';
   private offset = 0;
   private seen = new Set<string>();
+  private blockedSequences = new Set<string>();
   private active = new Map<string, EffectInstance>();
+  private soundedImpacts = new Set<string>();
   private timers = new Map<string, ReturnType<typeof setTimeout>>();
   readonly sounds = new ComedySounds();
   constructor(private show: (instances: EffectInstance[]) => void) {}
-  sync(snapshot: ComedySnapshot) {
+  sync(snapshot: ComedySnapshot, initial = false) {
     this.offset = snapshot.serverNow - Date.now();
+    if (initial || !this.epoch) {
+      this.clear();
+      if (snapshot.sequence) this.blockedSequences.add(snapshot.sequence.id);
+      if (this.blockedSequences.size > 100)
+        this.blockedSequences.delete(this.blockedSequences.values().next().value!);
+    }
     if (snapshot.epoch !== this.epoch) {
       this.clear();
       this.epoch = snapshot.epoch;
@@ -33,6 +41,7 @@ export class ComedyPlayback {
       now = this.serverNow;
     if (
       !effect ||
+      (instance.sequenceId && this.blockedSequences.has(instance.sequenceId)) ||
       this.seen.has(instance.id) ||
       instance.startedAt > now + 250 ||
       (effect.kind === 'transient' &&
@@ -57,7 +66,17 @@ export class ComedyPlayback {
       this.publish();
     }
     const soundDelay = instance.startedAt + effect.soundAtMs - now;
-    if (soundDelay > -200) this.sounds.play(effect.sound, soundDelay);
+    if (!effect.impact && soundDelay > -200) this.sounds.play(effect.sound, soundDelay);
+  }
+  impact(id: string) {
+    const instance = this.active.get(id);
+    if (!instance || instance.expiresAt! <= this.serverNow || this.soundedImpacts.has(id)) return;
+    const effect = comedyPack.effects.find((e) => e.id === instance.effectId);
+    if (!effect?.impact) return;
+    this.soundedImpacts.add(id);
+    if (this.soundedImpacts.size > 100)
+      this.soundedImpacts.delete(this.soundedImpacts.values().next().value!);
+    this.sounds.play(effect.sound, 0);
   }
   private publish() {
     this.show([...this.active.values()]);

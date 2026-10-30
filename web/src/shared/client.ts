@@ -13,7 +13,7 @@ export async function api(path: string, body: unknown = {}) {
 export function useCourt(
   panel: boolean,
   onEvent?: (event: CourtEvent) => void,
-  onSnapshot?: (snapshot: Snapshot) => void,
+  onSnapshot?: (snapshot: Snapshot, initial: boolean) => void,
 ) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [connected, setConnected] = useState(false);
@@ -29,7 +29,7 @@ export function useCourt(
       socket.onmessage = (e) => {
         const msg = JSON.parse(e.data);
         if (msg.type === 'snapshot') {
-          onSnapshot?.(msg.data);
+          onSnapshot?.(msg.data, msg.initial === true);
           setSnapshot(msg.data);
         } else onEvent?.(msg.data);
       };

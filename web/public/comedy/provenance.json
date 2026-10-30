@@ -60,5 +60,34 @@
       "partial_alpha_pixels": 40286,
       "sha256": "e6d50f17a3c38c0124ccecfc13ab175e978011a659ed050f77ab16c9ee201ea9"
     }
+  ],
+  "revisions": [
+    {
+      "milestone": "M9",
+      "provider": "Higgsfield",
+      "model": "gpt_image_2",
+      "job_id": "6e51a3d9-f767-41fe-af71-4860a6e431c7",
+      "created_at": "2026-10-30T20:00:33.342323Z",
+      "reference": "Original bonk.png from M8",
+      "processing": "Generated separate mallet and impact burst on a magenta matte; removed matte, decontaminated edges, cropped and padded to true RGBA. M8 assets retained for provenance.",
+      "files": [
+        {
+          "file": "bonk-mallet.png",
+          "source_crop": [0, 0, 1400, 1520],
+          "size": [906, 924],
+          "transparent_pixels": 490164,
+          "opaque_pixels": 342645,
+          "sha256": "27d1d250246e2f983c5ac54fe049af3deb9173a0cfb02be4da1ef9034a966cb7"
+        },
+        {
+          "file": "bonk-burst.png",
+          "source_crop": [1400, 0, 2688, 1520],
+          "size": [924, 894],
+          "transparent_pixels": 452675,
+          "opaque_pixels": 368087,
+          "sha256": "5850bef27edacddbd952f540b54b8fb8798daca8f99617eca438fa121b661ce4"
+        }
+      ]
+    }
   ]
 }

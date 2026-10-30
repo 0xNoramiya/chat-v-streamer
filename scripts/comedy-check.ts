@@ -2,12 +2,19 @@ import assert from 'node:assert/strict';
 import { resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { comedyPack } from '../web/src/shared/comedy.js';
+import { effectGeometry } from '../web/src/shared/comedyGeometry.js';
 import type { Snapshot } from '../web/src/shared/types.js';
 export async function verifyComedy(panel: Page, overlay: Page, get: () => Promise<Snapshot>) {
   await panel.setViewportSize({ width: 1440, height: 1050 });
   await panel.locator('nav').getByRole('button', { name: /Court/ }).first().click();
   const desk = panel.getByRole('region', { name: 'Comedy desk' });
   await desk.waitFor();
+  await desk.locator('.head-calibration summary').click();
+  await desk.getByRole('button', { name: 'Save head calibration', exact: true }).click();
+  await panel.waitForFunction(
+    async () => (await (await fetch('/api/state')).json()).comedy.calibrated,
+  );
+  await desk.locator('.head-calibration summary').click();
   await overlay.addInitScript(() => {
     const metrics = { starts: 0, cancelled: 0 };
     (window as unknown as { comedyAudioMetrics: typeof metrics }).comedyAudioMetrics = metrics;
@@ -82,7 +89,7 @@ export async function verifyComedy(panel: Page, overlay: Page, get: () => Promis
       }
       return output;
     },
-    comedyPack.effects.map((e) => e.asset),
+    comedyPack.effects.flatMap((e) => (e.impact ? [e.asset, e.impact.asset] : [e.asset])),
   );
   for (const image of files) {
     assert.ok(
@@ -131,14 +138,22 @@ export async function verifyComedy(panel: Page, overlay: Page, get: () => Promis
     );
     if (effect.kind === 'prop') {
       await desk.getByLabel('Position prop').selectOption(effect.id);
-      await desk.getByLabel('Horizontal %').fill('35');
-      await desk.getByLabel('Vertical %').fill('40');
+      const placement = {
+        x: effect.target === 'camera' ? 0.35 : 0.55,
+        y: effect.target === 'camera' ? 0.4 : 0.55,
+        scale: 0.8,
+      };
+      await desk.getByLabel('Horizontal %').fill(String(placement.x * 100));
+      await desk.getByLabel('Vertical %').fill(String(placement.y * 100));
       await desk.getByLabel('Scale %').fill('80');
       await desk.getByRole('button', { name: 'Apply position' }).click();
       await overlay.waitForFunction(
         ({ id, x }) =>
           (document.querySelector(`[data-effect="${id}"]`) as HTMLElement)?.style.left === `${x}px`,
-        { id: effect.id, x: camera.x + camera.w * 0.35 },
+        {
+          id: effect.id,
+          x: effectGeometry(effect, placement, (await get()).comedy.calibration, camera).left,
+        },
       );
       const instance = await sprite.getAttribute('data-instance');
       await overlay.reload();

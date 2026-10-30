@@ -1,5 +1,6 @@
 import { verifyOverlayFixtures } from './overlay-fixtures.js';
 import { verifyComedy } from './comedy-check.js';
+import { verifyCalibration } from './calibration-check.js';
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, symlink, rm } from 'node:fs/promises';
@@ -153,6 +154,7 @@ try {
   );
   assert.deepEqual(errors, []);
   const comedyChecks = await verifyComedy(panel, overlay, get);
+  const calibrationChecks = await verifyCalibration(panel, overlay, get, post);
   await post('chat', { user: 'viewer8', text: '!sue parrying is his specialty' });
   const filing = panel
     .locator('.case-row')
@@ -169,6 +171,7 @@ try {
       ok: true,
       phaseChecks,
       comedyChecks,
+      calibrationChecks,
       checks: [
         'panel route',
         'overlay route',

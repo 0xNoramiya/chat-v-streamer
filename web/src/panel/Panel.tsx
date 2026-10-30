@@ -350,7 +350,13 @@ export function Panel() {
                   </footer>
                 </section>
               </div>
-              <ComedyDesk state={s.comedy} now={s.court.now} connected={connected} run={run} />
+              <ComedyDesk
+                state={s.comedy}
+                now={s.court.now}
+                connected={connected}
+                run={run}
+                camera={s.settings.webcam}
+              />
             </div>
             <section className="quick-demo">
               <div>

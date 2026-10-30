@@ -3,6 +3,7 @@ import { ComedyDesk } from '../server/comedy/desk.js';
 import { ComedyPlayback } from '../web/src/overlay/comedyPlayback.js';
 import {
   comedyPack,
+  defaultCalibration,
   emptyComedy,
   manifestSchema,
   type ComedyEvent,
@@ -19,16 +20,14 @@ afterEach(() => vi.useRealTimers());
 function desk() {
   const events: ComedyEvent[] = [],
     saved: ComedySaved[] = [];
-  return {
-    events,
-    saved,
-    desk: new ComedyDesk(
-      undefined,
-      (value) => saved.push(structuredClone(value)),
-      (event) => events.push(event),
-      () => {},
-    ),
-  };
+  const desk = new ComedyDesk(
+    undefined,
+    (value) => saved.push(structuredClone(value)),
+    (event) => events.push(event),
+    () => {},
+  );
+  desk.command({ action: 'calibrate', calibration: defaultCalibration }, 0);
+  return { events, saved, desk };
 }
 it('validates manifests and commands without accepting arbitrary asset paths or animation code', () => {
   expect(comedyPack.effects).toHaveLength(6);
@@ -143,7 +142,7 @@ it('ignores expired/duplicate/obsolete events, removes completed DOM instances, 
   player.close();
   reconnected.close();
 });
-it('mistrial clears transient gags, retains removable props, and comedy commands never change the trial', async () => {
+it('mistrial clears current gags and props, and comedy commands never change the trial', async () => {
   const store = new Store(':memory:', 0),
     clock = new ManualClock(),
     runner = new CourtRunner(
@@ -155,6 +154,7 @@ it('mistrial clears transient gags, retains removable props, and comedy commands
     );
   try {
     await runner.demo();
+    runner.comedy.command({ action: 'calibrate', calibration: defaultCalibration }, clock.now());
     const before = structuredClone(runner.state);
     runner.comedy.command({ action: 'trigger', effectId: 'silly_hat' }, clock.now());
     runner.comedy.command({ action: 'trigger', effectId: 'poof' }, clock.now());
@@ -163,7 +163,7 @@ it('mistrial clears transient gags, retains removable props, and comedy commands
     runner.dispatch({ type: 'MISTRIAL', now: clock.now() });
     await runner.settle();
     expect(runner.comedy.snapshot(clock.now()).epoch).not.toBe(epoch);
-    expect(runner.comedy.snapshot(clock.now()).props).toHaveLength(1);
+    expect(runner.comedy.snapshot(clock.now()).props).toHaveLength(0);
     runner.comedy.command({ action: 'clear' }, clock.now());
     expect(runner.comedy.snapshot(clock.now()).props).toEqual([]);
     expect(store.all('SELECT * FROM sentences_applied')).toEqual([]);

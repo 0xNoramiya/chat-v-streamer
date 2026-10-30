@@ -38,16 +38,21 @@ export function Overlay() {
       setTimeout(() => setToast(''), 5000);
     }
   }, []);
-  const sync = useCallback((snapshot: Snapshot) => {
-    comedy.current?.sync(snapshot.comedy);
+  const sync = useCallback((snapshot: Snapshot, initial: boolean) => {
+    comedy.current?.sync(snapshot.comedy, initial);
     audio.current?.sync(speechScope(snapshot.court.trial), snapshot.court.now);
     if (snapshot.caption) audio.current?.enqueue(snapshot.caption);
   }, []);
   const { snapshot: s, connected } = useCourt(false, onEvent, sync);
+  const impact = useCallback((id: string) => comedy.current?.impact(id), []);
   useEffect(() => {
     for (const effect of comedyPack.effects) {
       const image = new Image();
       image.src = effect.asset;
+      if (effect.impact) {
+        const burst = new Image();
+        burst.src = effect.impact.asset;
+      }
     }
     document.body.classList.add('overlay-body');
     document.documentElement.classList.add('overlay-html');
@@ -64,6 +69,9 @@ export function Overlay() {
     <ComedyLayer
       instances={[...s.comedy.props, ...gags]}
       camera={s.settings.webcam}
+      calibration={s.comedy.calibration}
+      calibrated={s.comedy.calibrated}
+      onImpact={impact}
       serverNow={comedy.current.serverNow}
     />
   );

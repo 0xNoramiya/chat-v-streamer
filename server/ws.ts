@@ -22,7 +22,7 @@ export function attachWS(server: Server, runner: CourtRunner) {
   wss.on('connection', (ws, req) => {
     const panel = new URL(req.url!, 'http://localhost').searchParams.get('role') === 'panel';
     roles.set(ws, panel);
-    send(ws, { type: 'snapshot', data: runner.snapshot(panel) });
+    send(ws, { type: 'snapshot', data: runner.snapshot(panel), initial: true });
   });
   runner.onChange = () => {
     for (const ws of wss.clients)
