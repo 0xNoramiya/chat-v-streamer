@@ -37,3 +37,11 @@
 +- Defense uses actual phase entry/exit times, including skipped phases; late chunks are captured based on recording start time rather than arrival time.
 +- Validation: 17 tests, complete offline demo, strict build all pass. Mic hardware/API requires credentials and browser permission. Installed Vitest latest passed but declared newer Node engines; pinning the audited v4 release to preserve Node 20 support.
 +- Codex implemented browser recording and ingestion after reading the installed transcription declarations.
+
+## M4 — Twitch live adapter
++- Added local OAuth authorization-code flow for broadcaster and optional bot, one-use state with browser binding, atomic mode-0600 tokens, RefreshingAuthProvider, EventSub chat/badge parsing, deduplication and subscription recovery.
++- Added paced bounded outgoing chat, title mutations, protected contempt timeout, live-only clip/marker, getStream, DRY_RUN and panel diagnostic buttons. Title test has a 30-second persisted restore job.
++- Revert jobs preserve the original pre-conviction title across successive trials. Simulated jobs cannot become real mutations after toggling DRY_RUN; actual jobs defer restoration while DRY_RUN is on. Mistrial cancels outstanding sentence jobs.
++- Decisions: request moderation:read and channel:read:vips in addition to specified scopes so timeout protection can be checked authoritatively. If checks fail, skip the timeout. Native polls remain supplementary to canonical per-user chat votes, avoiding double counting; optional rewards match the exact title “File a lawsuit”.
++- Read Twurple declarations for auth, EventSub and every Helix call and official Twitch WebSocket documentation at https://dev.twitch.tv/docs/eventsub/handling-websocket-events/.
++- Codex implemented the adapter and credential-free contract tests. Authenticated Twitch actions require accounts and a live broadcast; these are not claimed as exercised.

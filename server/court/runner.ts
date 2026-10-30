@@ -59,7 +59,7 @@ export class CourtRunner {
   if(Math.floor(now/1000)!==Math.floor((now-250)/1000))this.track(this.sentencer.reverts(now));
  }finally{this.ticking=false}}
  dispatch(event:Event){const previous=this.state.trial;const beforePhase=previous?.phase;const result=reducer(this.state,event,this.settings);this.state=result.state;const t=this.state.trial;
-  if(previous&&event.type==='MISTRIAL'){this.store.updateCase(previous.caseId,{status:'mistrial',verdict:'mistrial',defense_text:previous.defense_text});this.log('court',`Case #${previous.caseId}: mistrial`)}
+  if(previous&&event.type==='MISTRIAL'){this.store.updateCase(previous.caseId,{status:'mistrial',verdict:'mistrial',defense_text:previous.defense_text});this.log('court',`Case #${previous.caseId}: mistrial`);this.track(this.sentencer.cancel(previous.caseId))}
   if(t){this.store.saveExhibits(t.caseId,t.exhibits);if(event.type==='VOTE'&&t.phase==='JURY')this.store.run('INSERT OR REPLACE INTO votes VALUES(?,?,?)',t.caseId,event.userId,event.vote);if(t.phase!==beforePhase)this.log('phase',`Case #${t.caseId}: ${t.phase}`)}
   this.onChange();for(const effect of result.effects)this.track(this.effect(effect,t??previous));
  }
@@ -70,7 +70,7 @@ export class CourtRunner {
   case 'restoreScene':await this.obs.restore();break;
   case 'callRebuttal':if(t){const result=await this.ai.rebuttal(this.getCase(t.caseId),t.exhibits.filter(e=>!e.struck),this.captureDefense(t),this.candidates().filter(s=>!t.exhibits.some(e=>e.struck&&e.segment_id===s.id)));if(this.state.trial?.caseId===t.caseId)this.dispatch({type:'REBUTTAL_READY',result,exhibit:result.new_exhibit?this.exhibit(result.new_exhibit,'rebuttal'):undefined,now:this.clock.now()})}break;
   case 'callVerdict':if(t){const c=this.getCase(t.caseId),votes=tally(t.votes),allowed=allowedSentences(this.settings,t);const result=await this.ai.verdict(c,votes.verdict,votes,t.exhibits.filter(e=>!e.struck),t.defense_text,allowed);if(this.state.trial?.caseId===t.caseId)this.dispatch({type:'VERDICT_READY',result,now:this.clock.now()})}break;
-  case 'executeSentence':if(t){const current=this.state.trial;if(!current||current.caseId!==t.caseId)break;current.verdictScript??=fallbackVerdict(t.verdict!,allowedSentences(this.settings,t));const c=this.getCase(t.caseId);await this.sentencer.execute(current,this.settings,this.users.get(c.plaintiff_id)??{id:c.plaintiff_id,login:c.plaintiff_login},this.clock.now());this.onChange()}break;
+  case 'executeSentence':if(t){const current=this.state.trial;if(!current||current.caseId!==t.caseId)break;current.verdictScript??=fallbackVerdict(t.verdict!,allowedSentences(this.settings,t));const c=this.getCase(t.caseId);await this.sentencer.execute(current,this.settings,this.users.get(c.plaintiff_id)??{id:c.plaintiff_id,login:c.plaintiff_login},this.clock.now(),()=>this.state.trial?.caseId===t.caseId&&this.getCase(t.caseId).status!=='mistrial');this.onChange()}break;
   case 'savePrecedent':if(t)this.finish(t);break;
   case 'juryOpened':if(this.settings.polls&&this.twitch.createPoll)await this.twitch.createPoll().catch(()=>this.log('twitch','Poll unavailable; chat voting remains open.'));break;
   case 'end':this.demoCase=null;break;
