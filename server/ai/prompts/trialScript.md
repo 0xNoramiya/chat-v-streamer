@@ -8,3 +8,5 @@ Write:
 - opening_line: Judge Docket opens court, names the case and the charge.
 - exhibit_lines: one per exhibit, D.A. Receipts presents it by letter (Exhibit A, B, C). Refer to what it shows without repeating the quote word for word.
 - defense_prompt: Judge Docket invites the defendant to defend himself and mentions he has 30 seconds.
+
+Keep opening_line at most 16 words: name the case and give a short allegation, rather than repeating the full formal charge already visible on screen. Each exhibit_line should be at most 14 words. Never claim that microphone or transcript capture is active; capture status is shown separately.

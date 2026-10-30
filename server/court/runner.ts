@@ -1,3 +1,6 @@
+import { CaptureReadiness } from '../adapters/transcript/readiness.js';
+import { deadline } from '../ai/deadline.js';
+import fallback from '../ai/prompts/fallbacks.json';
 import type { Store } from '../db.js';
 import { nearestFrame } from '../adapters/obs/frames.js';
 import { retrieve } from '../ai/retrieval.js';
@@ -5,10 +8,12 @@ import { validateExhibits } from '../ai/schemas.js';
 import { localSafe } from '../ai/moderation.js';
 import { config } from '../config.js';
 import type { AIService } from '../ai/service.js';
+import { SpeechCache } from '../ai/speech.js';
+import { speechScope, speechDurationMs } from '../../web/src/shared/speech.js';
 import { fallbackVerdict } from '../ai/service.js';
-import type { TwitchAdapter } from '../adapters/twitch/types.js';
+import type { TwitchAdapter, StreamInfo } from '../adapters/twitch/types.js';
 import type { ObsAdapter } from '../adapters/obs/types.js';
-import { reducer, type Event, type Effect } from './machine.js';
+import { reducer, announcements, defenseAnnouncement, type Event, type Effect } from './machine.js';
 import { parseCommand } from './commands.js';
 import { cosignThreshold, filingError, canCosign, openStatuses } from './docket.js';
 import { tally } from './jury.js';
@@ -30,9 +35,17 @@ import type {
 export interface Clock {
   now(): number;
   setInterval(fn: () => void, ms: number): ReturnType<typeof setInterval>;
+  setTimeout?(fn: () => void, ms: number): ReturnType<typeof setTimeout>;
+  clearTimeout?(id: ReturnType<typeof setTimeout>): void;
   clearInterval(id: ReturnType<typeof setInterval>): void;
 }
-export const systemClock: Clock = { now: Date.now, setInterval, clearInterval };
+export const systemClock: Clock = {
+  now: Date.now,
+  setInterval,
+  clearInterval,
+  setTimeout,
+  clearTimeout,
+};
 interface Prepared {
   script: TrialScript;
   exhibits: Exhibit[];
@@ -44,6 +57,11 @@ export class CourtRunner {
   onChange = () => {};
   onEvent = (_event: CourtEvent) => {};
   readonly sentencer: Sentencer;
+  readonly speech: SpeechCache;
+  readonly capture: CaptureReadiness;
+  private caption?: Extract<CourtEvent, { type: 'caption' }>;
+  private speechSequence = 0;
+  private closed = false;
   private timer?: ReturnType<typeof setInterval>;
   private prepared = new Map<number, Prepared>();
   private chatters = new Map<string, number>();
@@ -52,6 +70,7 @@ export class CourtRunner {
   private demoStarting = false;
   private demoInjected = new Set<string>();
   private ticking = false;
+  private starting = false;
   private pending = new Set<Promise<unknown>>();
   constructor(
     readonly store: Store,
@@ -63,6 +82,9 @@ export class CourtRunner {
     this.settings = store.settings();
     this.state = { trial: null, now: clock.now(), cooldownUntil: 0 };
     this.sentencer = new Sentencer(store, twitch, this.log);
+    this.speech = new SpeechCache(ai, clock);
+    this.capture = new CaptureReadiness(!!ai.transcriptionConfigured, () => this.clock.now());
+    twitch.onStreamInfo = (info) => this.adoptBroadcast(info);
     twitch.onMessage = (u, text) => {
       this.track(this.chat(u, text));
     };
@@ -92,14 +114,43 @@ export class CourtRunner {
     this.track(this.sentencer.reverts(this.clock.now()));
   }
   close() {
+    this.closed = true;
+    this.speech.close();
     if (this.timer) this.clock.clearInterval(this.timer);
     this.twitch.close?.();
     this.obs.close?.();
   }
+  captureStatus() {
+    const t = this.state.trial;
+    return this.capture.status(
+      !!t && t.caseId === this.demoCase,
+      !!t?.defense_text &&
+        !this.store
+          .all<{ source: string }>(
+            'SELECT source FROM segments WHERE broadcast_id=? AND started_at_ms>=?',
+            this.store.broadcastId,
+            t.defenseStartedAt ?? Infinity,
+          )
+          .some((s) => s.source === 'mic'),
+    );
+  }
   cases() {
     return this.store.cases(this.settings.streamerName);
   }
+  private evidenceCurrent(t: Trial) {
+    return (
+      this.getCase(t.caseId).broadcast_id === this.store.broadcastId &&
+      t.exhibits.every((e) => {
+        const segment = this.store.segment(e.segment_id);
+        return !!segment && this.store.eligibleSegment(segment, this.clock.now());
+      })
+    );
+  }
   snapshot(panel = true): Snapshot {
+    const safeState =
+      this.state.trial && !this.evidenceCurrent(this.state.trial)
+        ? { ...this.state, trial: null }
+        : this.state;
     const cases = this.cases().map((c) =>
       panel
         ? c
@@ -113,12 +164,18 @@ export class CourtRunner {
           },
     );
     return {
+      caption:
+        this.caption &&
+        this.caption.scope === speechScope(safeState.trial) &&
+        this.caption.expiresAt > this.clock.now()
+          ? this.caption
+          : undefined,
       sentences: this.store.activeSentences(),
       court: panel
-        ? this.state
+        ? safeState
         : {
-            ...this.state,
-            trial: this.state.trial ? { ...this.state.trial, defense_text: '' } : null,
+            ...safeState,
+            trial: safeState.trial ? { ...safeState.trial, defense_text: '' } : null,
           },
       cases,
       settings: this.settings,
@@ -126,6 +183,31 @@ export class CourtRunner {
       records: panel ? this.store.records() : { precedents: [], plaintiffs: [], convictions: [] },
       logs: panel ? this.logs : [],
       status: {
+        broadcastId: this.store.broadcastId,
+        evidence:
+          this.store.broadcast()?.kind === 'twitch'
+            ? 'Active Twitch broadcast verified'
+            : this.twitch.execution().mode === 'simulated'
+              ? 'Local rehearsal evidence'
+              : 'Live broadcast identity not verified',
+        capture: this.captureStatus(),
+        transcriptionConfigured: !!this.ai.transcriptionConfigured,
+        pendingUnverifiedRestores: this.store
+          .all<{ payload_json: string }>(
+            'SELECT payload_json FROM sentences_applied WHERE revert_at_ms IS NOT NULL AND reverted=0',
+          )
+          .filter((row) => {
+            const p = JSON.parse(row.payload_json);
+            return !p.execution && p.dryRun !== true;
+          }).length,
+        pendingRealRestores: this.store
+          .all<{ payload_json: string }>(
+            'SELECT payload_json FROM sentences_applied WHERE revert_at_ms IS NOT NULL AND reverted=0',
+          )
+          .filter((r) => {
+            const p = JSON.parse(r.payload_json);
+            return p.execution?.mode === 'live';
+          }).length,
         sim: config.SIM_MODE,
         dryRun: config.DRY_RUN,
         twitch: this.twitch.status,
@@ -141,6 +223,8 @@ export class CourtRunner {
     this.ticking = true;
     try {
       const now = this.clock.now();
+      if (this.state.trial && !this.evidenceCurrent(this.state.trial))
+        this.dispatch({ type: 'MISTRIAL', now });
       for (const c of this.cases())
         if (c.status === 'filing' && now >= c.created_at_ms + this.settings.cosignWindowMs) {
           this.store.updateCase(c.id, { status: 'expired' });
@@ -179,7 +263,7 @@ export class CourtRunner {
         now >= this.state.cooldownUntil &&
         this.settings.courtOn
       )
-        this.startNext();
+        this.track(this.startNext());
       if (Math.floor(now / 1000) !== Math.floor((now - 250) / 1000))
         this.track(this.sentencer.reverts(now));
     } finally {
@@ -203,7 +287,7 @@ export class CourtRunner {
         defense_text: previous.defense_text,
       });
       this.log('court', `Case #${previous.caseId}: mistrial`);
-      this.track(this.sentencer.cancel(previous.caseId));
+      this.track(this.sentencer.cancel(previous.caseId, this.clock.now()));
       this.finish({
         ...previous,
         verdict: 'mistrial',
@@ -227,21 +311,46 @@ export class CourtRunner {
   private async effect(effect: Effect, t: Trial | null) {
     switch (effect.type) {
       case 'speak': {
-        const phase = this.state.trial?.phase,
-          caseId = this.state.trial?.caseId;
-        let url: string | undefined;
-        try {
-          if (this.settings.tts) url = await this.ai.speak?.(effect.text, effect.speaker);
-        } catch {
-          /* Captions carry speech when audio is unavailable. */
-        }
-        if (this.state.trial?.caseId !== caseId || this.state.trial?.phase !== phase) return;
-        this.onEvent({
-          type: 'caption',
+        const now = this.clock.now(),
+          scope = speechScope(this.state.trial),
+          expiresAt = this.state.trial?.deadline ?? now + 6000;
+        const caption = {
+          type: 'caption' as const,
+          id: `line_${++this.speechSequence}`,
+          scope,
           speaker: effect.speaker,
           text: effect.text,
+          sentAt: now,
+          expiresAt,
+        };
+        this.caption = caption;
+        this.onEvent(caption);
+        this.onChange();
+        const readingMs = speechDurationMs(effect.text),
+          remaining = expiresAt - now;
+        if (!this.settings.tts || !this.ai.speak || remaining < readingMs + 300) break;
+        const url =
+          this.speech.peek(effect.text, effect.speaker) ??
+          (await this.speech.get(
+            effect.text,
+            effect.speaker,
+            Math.min(2500, remaining - readingMs - 300),
+          ));
+        if (
+          !url ||
+          this.closed ||
+          this.caption?.id !== caption.id ||
+          speechScope(this.state.trial) !== scope ||
+          expiresAt - this.clock.now() < readingMs + 300
+        )
+          break;
+        this.onEvent({
+          type: 'speech',
+          captionId: caption.id,
+          scope,
           url,
-          duration: Math.min(8000, Math.max(2200, effect.text.length * 42)),
+          sentAt: this.clock.now(),
+          expiresAt,
         });
         break;
       }
@@ -256,20 +365,33 @@ export class CourtRunner {
         break;
       case 'callRebuttal':
         if (t) {
-          const result = await this.ai.rebuttal(
-            this.getCase(t.caseId),
-            t.exhibits.filter((e) => !e.struck),
-            this.captureDefense(t),
-            this.candidates().filter(
-              (s) => !t.exhibits.some((e) => e.struck && e.segment_id === s.id),
-            ),
+          const candidates = this.candidates().filter(
+            (s) => !t.exhibits.some((e) => e.struck && e.segment_id === s.id),
           );
-          if (this.state.trial?.caseId === t.caseId)
+          const scope = speechScope(this.state.trial);
+          const result = await deadline(
+            this.ai.rebuttal(
+              { ...this.getCase(t.caseId), defense_capture: this.captureStatus().detail },
+              t.exhibits.filter((e) => !e.struck),
+              this.captureDefense(t),
+              candidates,
+            ),
+            Math.min(4000, Math.max(0, t.deadline - this.clock.now() - 5000)),
+            async () => ({ rebuttal_line: fallback.rebuttal[0], new_exhibit: null }),
+            this.clock,
+          );
+          if (
+            this.state.trial?.caseId === t.caseId &&
+            speechScope(this.state.trial) === scope &&
+            this.getCase(t.caseId).broadcast_id === this.store.broadcastId
+          )
             this.dispatch({
               type: 'REBUTTAL_READY',
               result,
               exhibit: result.new_exhibit
-                ? this.exhibit(result.new_exhibit, 'rebuttal')
+                ? candidates.some((s) => s.id === result.new_exhibit!.segment_id)
+                  ? this.exhibit(result.new_exhibit, 'rebuttal')
+                  : undefined
                 : undefined,
               now: this.clock.now(),
             });
@@ -280,15 +402,21 @@ export class CourtRunner {
           const c = this.getCase(t.caseId),
             votes = tally(t.votes),
             allowed = allowedSentences(this.settings, t);
-          const result = await this.ai.verdict(
-            c,
-            votes.verdict,
-            votes,
-            t.exhibits.filter((e) => !e.struck),
-            t.defense_text,
-            allowed,
+          const scope = speechScope(this.state.trial);
+          const result = await deadline(
+            this.ai.verdict(
+              { ...c, defense_capture: this.captureStatus().detail },
+              votes.verdict,
+              votes,
+              t.exhibits.filter((e) => !e.struck),
+              t.defense_text,
+              allowed,
+            ),
+            Math.min(6000, Math.max(0, t.deadline - this.clock.now() - 300)),
+            async () => fallbackVerdict(votes.verdict, allowed),
+            this.clock,
           );
-          if (this.state.trial?.caseId === t.caseId)
+          if (this.state.trial?.caseId === t.caseId && speechScope(this.state.trial) === scope)
             this.dispatch({ type: 'VERDICT_READY', result, now: this.clock.now() });
         }
         break;
@@ -298,14 +426,59 @@ export class CourtRunner {
           if (!current || current.caseId !== t.caseId) break;
           current.verdictScript ??= fallbackVerdict(t.verdict!, allowedSentences(this.settings, t));
           const c = this.getCase(t.caseId);
-          await this.sentencer.execute(
-            current,
-            this.settings,
-            this.users.get(c.plaintiff_id) ?? { id: c.plaintiff_id, login: c.plaintiff_login },
-            this.clock.now(),
-            () =>
-              this.state.trial?.caseId === t.caseId && this.getCase(t.caseId).status !== 'mistrial',
-          );
+          current.sentenceState = {
+            state: 'pending',
+            detail: 'Applying the approved consequence…',
+          };
+          this.onChange();
+          try {
+            await this.sentencer.execute(
+              current,
+              this.settings,
+              this.users.get(c.plaintiff_id) ?? { id: c.plaintiff_id, login: c.plaintiff_login },
+              this.clock.now(),
+              () =>
+                this.state.trial?.caseId === t.caseId &&
+                this.getCase(t.caseId).status !== 'mistrial' &&
+                this.getCase(t.caseId).broadcast_id === this.store.broadcastId,
+            );
+            if (this.state.trial?.caseId === t.caseId) {
+              const chosen = allowedSentences(this.settings, current).find(
+                (s) => s.id === current.verdictScript?.sentence_id,
+              );
+              this.state.trial.sentenceState =
+                current.verdict !== 'guilty' || !chosen
+                  ? {
+                      state: 'none',
+                      detail:
+                        current.verdict === 'guilty'
+                          ? 'No approved sentence selected.'
+                          : 'No conviction sentence.',
+                    }
+                  : this.twitch.execution().mode === 'live'
+                    ? {
+                        state: 'applied',
+                        detail:
+                          chosen.type === 'title'
+                            ? 'Title action confirmed · restoration saved'
+                            : 'Manual sentence awaits streamer confirmation',
+                      }
+                    : {
+                        state: 'rehearsed',
+                        detail: 'Rehearsal consequence · no live Twitch mutation',
+                      };
+            }
+          } catch {
+            if (this.state.trial?.caseId === t.caseId)
+              this.state.trial.sentenceState = {
+                state: 'failed',
+                detail: 'Consequence not confirmed · any saved restoration remains pending',
+              };
+            this.log(
+              'sentence',
+              'Consequence could not be confirmed; restoration obligations are retained.',
+            );
+          }
           this.onChange();
         }
         break;
@@ -338,9 +511,11 @@ export class CourtRunner {
     added_in: Exhibit['added_in'],
   ): Exhibit | undefined {
     const s = this.store.segment(pick.segment_id);
-    if (!s) return undefined;
+    if (!s || !this.store.eligibleSegment(s, this.clock.now())) return undefined;
     return {
       ...pick,
+      source: s.source,
+      broadcast_id: s.broadcast_id,
       text: s.text,
       timestamp: s.timestamp,
       frame_url: nearestFrame(this.store, s.started_at_ms)?.url ?? null,
@@ -349,6 +524,10 @@ export class CourtRunner {
     };
   }
   async file(user: User, charge: string, skipCosign = false) {
+    if (this.twitch.execution().mode !== 'simulated' && !(await this.verifyBroadcast())) {
+      await this.twitch.sendChat('The court awaits a verified live broadcast.');
+      return null;
+    }
     const error = filingError(charge, user.id, this.cases(), this.settings, this.clock.now());
     if (error) {
       await this.twitch.sendChat(error);
@@ -359,7 +538,7 @@ export class CourtRunner {
     const threshold = cosignThreshold(this.uniqueChatters(), this.settings);
     const id = Number(
       this.store.run(
-        'INSERT INTO cases(case_no,status,plaintiff_id,plaintiff_login,raw_charge,threshold,created_at_ms) VALUES(?,?,?,?,?,?,?)',
+        'INSERT INTO cases(case_no,status,plaintiff_id,plaintiff_login,raw_charge,threshold,created_at_ms,broadcast_id) VALUES(?,?,?,?,?,?,?,?)',
         count,
         'filing',
         user.id,
@@ -367,6 +546,7 @@ export class CourtRunner {
         charge,
         threshold,
         now,
+        this.store.broadcastId,
       ).lastInsertRowid,
     );
     this.users.set(user.id, user);
@@ -498,6 +678,10 @@ export class CourtRunner {
       this.store.records().precedents.map((p) => p.id),
     );
     if (!['queued', 'pending_approval'].includes(this.getCase(id).status)) return;
+    if (c.broadcast_id !== this.store.broadcastId) {
+      this.store.updateCase(id, { status: 'dismissed', reject_reason: 'broadcast_changed' });
+      return;
+    }
     const ids = new Set(candidates.map((s) => s.id));
     const exhibits = script.exhibits
       .filter((e) => ids.has(e.segment_id))
@@ -524,12 +708,17 @@ export class CourtRunner {
       exhibits.some((x) => x.segment_id === e.segment_id),
     );
     this.store.saveExhibits(id, exhibits);
-    if (this.ai.speak && this.settings.tts)
-      await Promise.allSettled([
-        this.ai.speak(script.opening_line, 'Judge Docket'),
-        this.ai.speak(script.defense_prompt, 'Judge Docket'),
-        ...script.exhibit_lines.map((line) => this.ai.speak!(line, 'D.A. Receipts')),
-      ]);
+    if (this.ai.speak && this.settings.tts) {
+      for (const [text, speaker] of [
+        [script.opening_line, 'Judge Docket'],
+        [defenseAnnouncement(this.settings.phaseMs.DEFENSE), 'Judge Docket'],
+        ...script.exhibit_lines.map((line) => [line, 'D.A. Receipts']),
+        ...Object.values(announcements).map((line) => [line, 'Judge Docket']),
+        [fallback.rebuttal[0], 'D.A. Receipts'],
+        [fallback.sentence[0], 'Judge Docket'],
+      ])
+        this.track(this.speech.warm(text, speaker));
+    }
     if (['queued', 'pending_approval'].includes(this.getCase(id).status))
       this.prepared.set(id, { script, exhibits });
     this.onChange();
@@ -543,35 +732,92 @@ export class CourtRunner {
     });
     this.onChange();
   }
-  startNext() {
-    if (this.state.trial || !this.settings.courtOn || this.clock.now() < this.state.cooldownUntil)
-      return;
-    const c = this.cases()
-      .reverse()
-      .find((c) => c.status === 'queued' && this.prepared.has(c.id));
-    if (!c) return;
-    const prepared = this.prepared.get(c.id)!;
-    prepared.exhibits = prepared.exhibits.map((e) => ({
-      ...e,
-      frame_url:
-        nearestFrame(this.store, this.store.segment(e.segment_id)!.started_at_ms)?.url ?? null,
-    }));
-    this.prepared.delete(c.id);
-    this.store.updateCase(c.id, { status: 'in_trial', trial_started_at_ms: this.clock.now() });
-    this.dispatch({
-      type: 'START',
-      caseId: c.id,
-      name: c.name,
-      formalCharge: c.formal_charge,
-      ...prepared,
-      now: this.clock.now(),
-    });
+  adoptBroadcast(info: StreamInfo) {
+    const before = this.store.broadcastId;
+    if (info.live && info.broadcastId && info.channelId && info.startedAt !== null)
+      this.store.bindBroadcast({
+        id: `twitch:${info.channelId}:${info.broadcastId}`,
+        channelId: info.channelId,
+        startedAt: info.startedAt,
+        kind: 'twitch',
+      });
+    else if (!info.live && this.store.broadcast()?.kind === 'twitch')
+      this.store.useLocalBroadcast();
+    if (before !== this.store.broadcastId) {
+      if (this.state.trial) this.dispatch({ type: 'MISTRIAL', now: this.clock.now() });
+      this.store.run(
+        "UPDATE cases SET status='expired' WHERE broadcast_id<>? AND status IN ('filing','screening','queued','pending_approval')",
+        this.store.broadcastId,
+      );
+      this.onChange();
+    }
   }
-  addSegment(text: string, start: number, end: number, source: Segment['source']) {
-    const s = this.store.addSegment(text, start, end, source);
+  private async verifyBroadcast() {
+    const info = await deadline(this.twitch.getStream(), 2500, async () => null, this.clock);
+    if (!info) return false;
+    this.adoptBroadcast(info);
+    return !!info.live && !!info.broadcastId && !!info.channelId && info.startedAt !== null;
+  }
+  async startNext() {
+    if (this.starting) return;
+    this.starting = true;
+    try {
+      if (this.state.trial || !this.settings.courtOn || this.clock.now() < this.state.cooldownUntil)
+        return;
+      const c = this.cases()
+        .reverse()
+        .find(
+          (c) =>
+            c.status === 'queued' &&
+            c.broadcast_id === this.store.broadcastId &&
+            this.prepared.has(c.id),
+        );
+      if (!c) return;
+      if (this.twitch.execution().mode !== 'simulated' && !(await this.verifyBroadcast())) return;
+      if (c.broadcast_id !== this.store.broadcastId || this.getCase(c.id).status !== 'queued')
+        return;
+      const prepared = this.prepared.get(c.id)!;
+      if (
+        prepared.exhibits.some((e) => {
+          const s = this.store.segment(e.segment_id);
+          return !s || !this.store.eligibleSegment(s, this.clock.now());
+        })
+      ) {
+        this.store.updateCase(c.id, { status: 'dismissed', reject_reason: 'broadcast_changed' });
+        this.prepared.delete(c.id);
+        return;
+      }
+      prepared.exhibits = prepared.exhibits.map((e) => ({
+        ...e,
+        frame_url:
+          nearestFrame(this.store, this.store.segment(e.segment_id)!.started_at_ms)?.url ?? null,
+      }));
+      this.prepared.delete(c.id);
+      this.store.updateCase(c.id, { status: 'in_trial', trial_started_at_ms: this.clock.now() });
+      this.dispatch({
+        type: 'START',
+        caseId: c.id,
+        name: c.name,
+        formalCharge: c.formal_charge,
+        ...prepared,
+        now: this.clock.now(),
+      });
+    } finally {
+      this.starting = false;
+    }
+  }
+  addSegment(
+    text: string,
+    start: number,
+    end: number,
+    source: Segment['source'],
+    broadcastId = this.store.broadcastId,
+  ) {
+    const s = this.store.addSegment(text, start, end, source, broadcastId);
     const t = this.state.trial;
     if (
       t &&
+      this.store.eligibleSegment(s, this.clock.now()) &&
       t.defenseStartedAt !== null &&
       start >= t.defenseStartedAt &&
       start < (t.defenseEndedAt ?? t.deadline)
@@ -583,8 +829,8 @@ export class CourtRunner {
   captureDefense(t: Trial) {
     const defenseStart = t.defenseStartedAt ?? 0;
     const segments = this.store.all<{ text: string }>(
-      'SELECT text FROM segments WHERE session_id=? AND started_at_ms>=? AND started_at_ms<? ORDER BY started_at_ms',
-      this.store.sessionId,
+      'SELECT text FROM segments WHERE broadcast_id=? AND started_at_ms>=? AND started_at_ms<? ORDER BY started_at_ms',
+      this.getCase(t.caseId).broadcast_id,
       defenseStart,
       t.defenseEndedAt ?? this.clock.now(),
     );
@@ -646,6 +892,8 @@ export class CourtRunner {
   }
   serveSentence(id?: number) {
     const caseId = id ?? this.state.trial?.caseId ?? this.store.activeSentences()[0]?.case_id;
+    if (caseId === undefined || !this.store.activeSentences().some((s) => s.case_id === caseId))
+      return;
     if (caseId !== undefined)
       this.store.run(
         'UPDATE sentences_applied SET reverted=1 WHERE case_id=? AND revert_at_ms IS NULL',
@@ -668,6 +916,11 @@ export class CourtRunner {
       this.demoInjected.clear();
       this.state.cooldownUntil = 0;
       const now = this.clock.now();
+      if (this.twitch.execution().mode !== 'simulated')
+        throw Error(
+          'Use SIM_MODE=true for the full demo; live trials require active-broadcast evidence.',
+        );
+      this.store.useLocalBroadcast(now - 40000);
       [
         'This boss is easy, first try guaranteed.',
         'I never die to this guy, trust me.',
@@ -688,7 +941,7 @@ export class CourtRunner {
         );
       if (this.getCase(id).status === 'pending_approval')
         this.approve(this.getCase(id).case_no, true);
-      this.startNext();
+      await this.startNext();
       return id;
     } finally {
       this.demoStarting = false;

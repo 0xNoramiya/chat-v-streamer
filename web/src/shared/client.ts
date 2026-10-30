@@ -10,7 +10,11 @@ export async function api(path: string, body: unknown = {}) {
   if (!response.ok) throw Error(result.error ?? 'Request failed');
   return result;
 }
-export function useCourt(panel: boolean, onEvent?: (event: CourtEvent) => void) {
+export function useCourt(
+  panel: boolean,
+  onEvent?: (event: CourtEvent) => void,
+  onSnapshot?: (snapshot: Snapshot) => void,
+) {
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
     [connected, setConnected] = useState(false);
   useEffect(() => {
@@ -24,8 +28,10 @@ export function useCourt(panel: boolean, onEvent?: (event: CourtEvent) => void) 
       socket.onopen = () => setConnected(true);
       socket.onmessage = (e) => {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'snapshot') setSnapshot(msg.data);
-        else onEvent?.(msg.data);
+        if (msg.type === 'snapshot') {
+          onSnapshot?.(msg.data);
+          setSnapshot(msg.data);
+        } else onEvent?.(msg.data);
       };
       socket.onclose = () => {
         setConnected(false);
@@ -38,6 +44,6 @@ export function useCourt(panel: boolean, onEvent?: (event: CourtEvent) => void) 
       clearTimeout(retry);
       socket?.close();
     };
-  }, [panel, onEvent]);
+  }, [panel, onEvent, onSnapshot]);
   return { snapshot, connected };
 }

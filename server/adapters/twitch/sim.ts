@@ -1,4 +1,4 @@
-import type { TwitchAdapter, StreamInfo } from './types.js';
+import type { TwitchAdapter, StreamInfo, TwitchExecution } from './types.js';
 import type { User } from '../../../web/src/shared/types.js';
 export const simUser = (id: string): User => ({
   id,
@@ -8,6 +8,9 @@ export const simUser = (id: string): User => ({
   vip: id === 'vip1',
 });
 export class SimTwitch implements TwitchAdapter {
+  execution(): TwitchExecution {
+    return { mode: 'simulated', channelId: 'local-simulator' };
+  }
   status = 'simulator';
   eventsubStatus = 'simulator';
   title = 'A completely ordinary boss run';

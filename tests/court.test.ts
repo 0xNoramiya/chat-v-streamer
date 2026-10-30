@@ -83,11 +83,16 @@ describe('docket', () => {
 describe('machine', () => {
   it('is pure and advances at exact deadlines', () => {
     const state = start();
-    const next = reducer(state, { type: 'TICK', now: 5999 }, defaults);
-    expect(next.state.trial?.phase).toBe('CALL_TO_ORDER');
-    expect(reducer(state, { type: 'TICK', now: 6000 }, defaults).state.trial?.phase).toBe(
-      'EXHIBITS',
+    const next = reducer(
+      state,
+      { type: 'TICK', now: defaults.phaseMs.CALL_TO_ORDER - 1 },
+      defaults,
     );
+    expect(next.state.trial?.phase).toBe('CALL_TO_ORDER');
+    expect(
+      reducer(state, { type: 'TICK', now: defaults.phaseMs.CALL_TO_ORDER }, defaults).state.trial
+        ?.phase,
+    ).toBe('EXHIBITS');
     expect(state.trial?.phase).toBe('CALL_TO_ORDER');
   });
   it('mistrial immediately restores and prevents sentence', () => {
@@ -157,4 +162,12 @@ it('rejects a vote at the exact jury deadline and applies the absolute three-min
   expect(hard.state.trial).toBeNull();
   expect(hard.effects.map((e) => e.type)).toContain('restoreScene');
   expect(hard.effects.map((e) => e.type)).not.toContain('executeSentence');
+});
+
+it('defaults to 94–110 seconds for one to three receipts without shortening defense or voting', () => {
+  const { EXHIBITS, ...fixed } = defaults.phaseMs;
+  const base = Object.values(fixed).reduce((sum, ms) => sum + ms, 0);
+  expect([1, 2, 3].map((n) => base + n * EXHIBITS)).toEqual([94000, 102000, 110000]);
+  expect(defaults.phaseMs.DEFENSE).toBe(30000);
+  expect(defaults.phaseMs.JURY).toBe(20000);
 });

@@ -33,3 +33,11 @@ Complete M1–M6 in order, append decisions/validation/Codex usage to BUILD_LOG.
 - A configured OpenAI key enables AI even with simulated Twitch/OBS. Live moderation failures fail closed. The offline clerk supports conservative rehearsal cases, not general personal allegations.
 - Native polls supplement chat commands; never merge anonymous poll counts into identity-based chat votes.
 - Do not delete the database to recover a crash: it holds title and OBS restoration jobs. Boot marks interrupted/open cases as mistrial/expired instead of resuming timers unsafely.
+
+## Reliable trial invariants
+
+- SQLite schema v2 persists broadcast identity on evidence. Eligibility is checked again at preparation, trial start, rebuttal insertion and snapshot publication. Never bring legacy/unverified or other-broadcast receipts into court; precedents remain independent history.
+- Sentence payloads persist execution mode and channel. Never mark an actual restore complete because a rehearsal ran. Unknown legacy jobs stay pending unless the recorded convicted title is verified live; do not guess their provenance.
+- Captions and speech are separate events with line IDs, phase/exhibit scope and absolute expiration. Use `server/ai/speech.ts` for bounded preparation/cache; an obsolete or over-budget clip cannot play. The clock never waits for it.
+- `browser:check` includes all-phase long-text fixtures and full camera-interior PNG alpha scans. Keep the receipts, camera, prompts and caption zones disjoint. Long quotes must remain accessible verbatim through explicit page controls.
+- Default trial pacing is 94–110 seconds. Keep defense at 30 seconds, jury at 20, and the absolute cap at 180 seconds.

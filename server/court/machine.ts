@@ -10,6 +10,17 @@ import {
   type Rebuttal,
 } from '../../web/src/shared/types.js';
 import { tally } from './jury.js';
+export const defenseAnnouncement = (ms: number) =>
+  `Defendant, you have ${Math.ceil(ms / 1000)} seconds. State your defense.`;
+export const announcements = {
+  jury: 'Members of the jury: vote guilty or not guilty. The decision is yours.',
+  guilty: 'The jury finds the defendant guilty.',
+  not_guilty: 'Not guilty. The benefit of doubt prevails.',
+  mistrial: 'Mistrial. No jury votes were recorded.',
+  adjourn: 'Court adjourned. Keep your receipts.',
+  order: 'Order in the court!',
+  contempt: 'The plaintiff is held in contempt for a frivolous filing.',
+};
 export type Event =
   | {
       type: 'START';
@@ -75,7 +86,7 @@ export function reducer(
         break;
       case 'DEFENSE':
         t.defenseStartedAt = event.now;
-        speak(t.script.defense_prompt);
+        speak(defenseAnnouncement(s.phaseMs.DEFENSE));
         break;
       case 'REBUTTAL':
         t.defenseEndedAt = event.now;
@@ -83,27 +94,22 @@ export function reducer(
         break;
       case 'JURY':
         effects.push({ type: 'juryOpened' });
-        speak('Members of the jury: vote guilty or not guilty. The decision is yours.');
+        speak(announcements.jury);
         break;
       case 'VERDICT':
         t.verdict = tally(t.votes).verdict;
         effects.push({ type: 'callVerdict' }, { type: 'sfx', name: 'stamp' });
-        speak(
-          t.verdict === 'guilty'
-            ? 'The jury finds the defendant guilty.'
-            : t.verdict === 'not_guilty'
-              ? 'Not guilty. The benefit of doubt prevails.'
-              : 'Mistrial. No jury votes were recorded.',
-        );
+        speak(announcements[t.verdict]);
         break;
       case 'SENTENCING':
-        if (t.verdict === 'not_guilty' && s.contempt)
-          speak('The plaintiff is held in contempt for a frivolous filing.');
+        if (t.verdict === 'not_guilty' && s.contempt) speak(announcements.contempt);
+        if (t.verdict === 'guilty' && t.verdictScript?.sentence_flavor)
+          speak(t.verdictScript.sentence_flavor);
         effects.push({ type: 'executeSentence' });
         break;
       case 'ADJOURN':
         effects.push({ type: 'savePrecedent' }, { type: 'restoreScene' });
-        speak('The court stands adjourned. Keep your receipts.');
+        speak(announcements.adjourn);
         break;
     }
   };
@@ -160,6 +166,7 @@ export function reducer(
     case 'MISTRIAL':
       t.verdict = 'mistrial';
       effects.push({ type: 'restoreScene' }, { type: 'end' });
+      speak('Mistrial. The court will reconvene.');
       state.trial = null;
       state.cooldownUntil = event.now + s.betweenTrialsMs;
       break;
@@ -193,7 +200,7 @@ export function reducer(
       if (t.objections.length >= s.objectionThreshold && event.now - t.objectionLastAt >= 20000) {
         t.objectionLastAt = event.now;
         t.objections = [];
-        speak('Order in the court!');
+        speak(announcements.order);
         effects.push({ type: 'sfx', name: 'gavel' });
       }
       break;
@@ -207,7 +214,7 @@ export function reducer(
     case 'VERDICT_READY':
       if (t.phase === 'VERDICT' && event.now < t.deadline) {
         t.verdictScript = event.result;
-        speak(event.result.verdict_line);
+        // The jury announcement is immediate and fixed; AI flavor belongs to sentencing.
       }
       break;
     case 'SERVED':

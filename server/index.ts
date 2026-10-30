@@ -35,12 +35,7 @@ const obs: ObsAdapter = config.SIM_MODE ? new SimObs(log) : new RealObs(store, l
   ai = new CourtAI(store, log);
 runner = new CourtRunner(store, twitch, obs, ai);
 async function syncStream(info: StreamInfo) {
-  if (info.startedAt)
-    store.run(
-      'UPDATE sessions SET stream_started_at_ms=? WHERE id=?',
-      info.startedAt,
-      store.sessionId,
-    );
+  runner.adoptBroadcast(info);
   if (
     info.displayName &&
     runner.settings.streamerName === defaults.streamerName &&
@@ -92,7 +87,7 @@ app.post('/api/chat', async (req, res) => {
   res.json({ ok: true });
 });
 app.post('/api/demo', async (_req, res) => res.json({ id: await runner.demo() }));
-app.post('/api/action', (req, res) => {
+app.post('/api/action', async (req, res) => {
   const action = z
     .object({
       type: z.enum(['MISTRIAL', 'SKIP', 'SERVED', 'START', 'STRIKE', 'APPROVE', 'VETO']),
@@ -100,7 +95,7 @@ app.post('/api/action', (req, res) => {
       index: z.number().int().min(0).max(3).optional(),
     })
     .parse(req.body);
-  if (action.type === 'START') runner.startNext();
+  if (action.type === 'START') await runner.startNext();
   else if (action.type === 'APPROVE' || action.type === 'VETO')
     runner.approve(action.id!, action.type === 'APPROVE');
   else if (action.type === 'SERVED') runner.serveSentence(action.id);
@@ -122,9 +117,21 @@ app.post('/api/settings', async (req, res) => {
 });
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 2 },
+  limits: { fileSize: 5 * 1024 * 1024, files: 1, fields: 3 },
   fileFilter: (_req, file, cb) =>
     cb(null, /^audio\/(webm|ogg|mp4|wav|x-wav|mpeg)/.test(file.mimetype)),
+});
+app.post('/api/capture', (req, res) => {
+  const body = z
+    .object({
+      clientId: z.string().regex(/^[a-zA-Z0-9_-]{1,80}$/),
+      state: z.enum(['starting', 'recording', 'stopped', 'error']),
+      sequence: z.number().int().min(0),
+    })
+    .parse(req.body);
+  runner.capture.update(body.clientId, body.state, body.sequence);
+  runner.onChange();
+  res.json({ ok: true });
 });
 app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
   if (!ai.client)
@@ -133,18 +140,24 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
       .json({ error: 'Set OPENAI_API_KEY to transcribe mic audio. Manual lines work offline.' });
   if (!req.file) throw Error('A standalone audio chunk is required.');
   const timing = chunkTiming(req.body, Date.now());
+  const clientId = z.string().max(80).optional().parse(req.body.clientId);
+  const broadcastId = store.broadcastId;
   let text: string;
   try {
     text = await transcribe(ai.client.sdk, req.file.buffer, req.file.mimetype);
   } catch {
+    if (clientId) runner.capture.result(clientId, false);
+    runner.onChange();
     return res.status(502).json({
       error:
         'Transcription unavailable. Check the OpenAI key, model and connection; manual lines remain available.',
     });
   }
+  if (clientId) runner.capture.result(clientId, true);
+  runner.onChange();
   res.json(
     text
-      ? runner.addSegment(text, timing.started_at_ms, timing.ended_at_ms, 'mic')
+      ? runner.addSegment(text, timing.started_at_ms, timing.ended_at_ms, 'mic', broadcastId)
       : { skipped: true },
   );
 });

@@ -12,7 +12,7 @@ import type { Express } from 'express';
 import { z } from 'zod';
 import { config } from '../../config.js';
 import type { Settings, User } from '../../../web/src/shared/types.js';
-import type { TwitchAdapter, StreamInfo } from './types.js';
+import type { TwitchAdapter, StreamInfo, TwitchExecution } from './types.js';
 const tokenSchema = z.object({
   userId: z.string(),
   token: z.object({
@@ -29,9 +29,16 @@ export function protectedUser(user: User, broadcasterId: string) {
   return user.id === broadcasterId || !!(user.broadcaster || user.mod || user.vip);
 }
 export class RealTwitch implements TwitchAdapter {
+  execution(): TwitchExecution {
+    return {
+      mode: config.DRY_RUN ? 'dry_run' : 'live',
+      channelId: this.accounts.broadcaster?.userId ?? null,
+    };
+  }
   status = 'not connected';
   eventsubStatus = 'not connected';
   botId?: string;
+  onStreamInfo?: (info: StreamInfo) => void;
   onMessage?: (user: User, text: string) => void;
   onRedemption?: (user: User, text: string) => void;
   private provider: RefreshingAuthProvider;
@@ -299,7 +306,8 @@ export class RealTwitch implements TwitchAdapter {
       ),
     );
   }
-  async timeout(user: User, seconds: number, reason: string) {
+  async timeout(user: User, seconds: number, reason: string, active = () => true) {
+    if (!active()) return;
     const id = this.accounts.broadcaster?.userId ?? '';
     if (protectedUser(user, id)) {
       this.log('twitch', 'Protected account: contempt timeout skipped.');
@@ -319,6 +327,7 @@ export class RealTwitch implements TwitchAdapter {
         this.log('twitch', 'Cannot verify protected status; contempt timeout skipped.');
         return;
       }
+      if (!active()) return;
       await this.api.asUser(this.broadcaster(), (ctx) =>
         ctx.moderation.banUser(this.broadcaster(), {
           user: user.id,
@@ -334,19 +343,24 @@ export class RealTwitch implements TwitchAdapter {
       this.api.asUser(id, (ctx) => ctx.streams.getStreamByUserId(id)),
       this.api.asUser(id, (ctx) => ctx.channels.getChannelInfoById(id)),
     ]);
-    return {
+    const info: StreamInfo = {
       live: !!stream,
+      broadcastId: stream?.id,
+      channelId: id,
       title: channel?.title ?? 'Live stream',
       displayName: channel?.displayName,
       startedAt: stream?.startDate.getTime() ?? null,
     };
+    this.onStreamInfo?.(info);
+    return info;
   }
-  async createClip() {
+  async createClip(active = () => true) {
     try {
       if (!(await this.getStream()).live) {
         this.log('twitch', 'Clip skipped: channel is offline.');
         return;
       }
+      if (!active()) return;
       await this.action('createClip', () =>
         this.api.asUser(this.broadcaster(), (ctx) =>
           ctx.clips.createClip({ channel: this.broadcaster() }),
@@ -356,12 +370,13 @@ export class RealTwitch implements TwitchAdapter {
       this.log('twitch', 'Clip unavailable. Check live status and clips:edit.');
     }
   }
-  async createMarker(description: string) {
+  async createMarker(description: string, active = () => true) {
     try {
       if (!(await this.getStream()).live) {
         this.log('twitch', 'Marker skipped: channel is offline.');
         return;
       }
+      if (!active()) return;
       await this.action(`createMarker: ${description}`, () =>
         this.api.asUser(this.broadcaster(), (ctx) =>
           ctx.streams.createStreamMarker(this.broadcaster(), description.slice(0, 140)),

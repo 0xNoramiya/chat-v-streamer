@@ -64,3 +64,31 @@ it('paces queued outgoing messages at least 1.5 seconds apart', async () => {
     vi.useRealTimers();
   }
 });
+
+it('does not issue clip or marker mutations if a mistrial occurs during the live-status lookup', async () => {
+  const { config } = await import('../server/config.js');
+  const before = config.DRY_RUN;
+  config.DRY_RUN = false;
+  const logs: string[] = [],
+    adapter = new RealTwitch(
+      (_kind, text) => logs.push(text),
+      () => defaults,
+    );
+  let finish!: (value: { live: boolean; title: string; startedAt: null }) => void;
+  const stream = new Promise<{ live: boolean; title: string; startedAt: null }>(
+    (r) => (finish = r),
+  );
+  vi.spyOn(adapter, 'getStream').mockImplementation(() => stream);
+  let active = true;
+  try {
+    const clip = adapter.createClip(() => active),
+      marker = adapter.createMarker('Case fixture', () => active);
+    active = false;
+    finish({ live: true, title: 'Original', startedAt: null });
+    await Promise.all([clip, marker]);
+    expect(logs).toEqual([]);
+  } finally {
+    adapter.close();
+    config.DRY_RUN = before;
+  }
+});

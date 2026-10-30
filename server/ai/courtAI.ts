@@ -13,7 +13,10 @@ import { precedents, formatCandidates } from './retrieval.js';
 import { validateExhibits, validateRebuttal } from './schemas.js';
 import type { Case, Exhibit, PenalEntry, Segment, Verdict } from '../../web/src/shared/types.js';
 export class CourtAI implements AIService {
-  status: string;
+  get status() {
+    return this.client?.status ?? 'canned lines';
+  }
+  readonly transcriptionConfigured = !!config.OPENAI_API_KEY;
   readonly client?: AIClient;
   readonly moderator: Moderator;
   private tts?: TTS;
@@ -25,9 +28,9 @@ export class CourtAI implements AIService {
     if (config.OPENAI_API_KEY) {
       this.client = new AIClient(log);
       this.tts = new TTS(this.client.sdk);
-      this.status = 'OpenAI configured';
+
       void this.client.checkModels();
-    } else this.status = 'canned lines';
+    }
     this.moderator = new Moderator(this.client?.sdk);
   }
   async moderate(text: string) {
@@ -144,6 +147,7 @@ export class CourtAI implements AIService {
             formal_charge: c.formal_charge,
             exhibits,
             defense_text: defense,
+            defense_capture_status: c.defense_capture ?? 'Capture status unknown',
             candidates: formatCandidates(safeCandidates),
           },
           fallback,
@@ -197,6 +201,7 @@ export class CourtAI implements AIService {
             formal_charge: c.formal_charge,
             exhibits,
             defense_text: defense,
+            defense_capture_status: c.defense_capture ?? 'Capture status unknown',
             allowed_penal_code: allowed,
             contempt_enabled: this.store.settings().contempt,
           },

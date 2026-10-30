@@ -11,6 +11,7 @@ import { Moderator, localSafe } from '../server/ai/moderation.js';
 import type { TrialScript, Segment } from '../web/src/shared/types.js';
 const segment = {
   id: 'seg_000001',
+  broadcast_id: 'local:test',
   text: 'first try guaranteed',
   timestamp: '00:00:01',
   session_id: 1,
@@ -64,9 +65,11 @@ it('trims slight overlength at word boundary and rejects excessive length', () =
 it('FTS retrieval unions older-session matches and current recent window', () => {
   const db = new Store(':memory:', 0);
   db.addSegment('A parrying specialty', 1000, 2000, 'sim');
+  const broadcast = db.broadcastId!;
   db.sessionId = Number(
     db.run('INSERT INTO sessions(started_at_ms) VALUES(?)', 3000000).lastInsertRowid,
   );
+  db.run('UPDATE sessions SET broadcast_id=? WHERE id=?', broadcast, db.sessionId);
   db.addSegment('A neutral recent line', 3000100, 3000200, 'manual');
   const result = retrieve(db, ['parrying'], 3001000);
   expect(result.map((s) => s.text)).toEqual(['A parrying specialty', 'A neutral recent line']);

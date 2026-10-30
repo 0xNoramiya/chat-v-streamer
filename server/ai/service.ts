@@ -13,6 +13,7 @@ import fallback from './prompts/fallbacks.json';
 import { localSafe } from './moderation.js';
 export interface AIService {
   status: string;
+  transcriptionConfigured?: boolean;
   moderate?(text: string): Promise<boolean>;
   clerk(charge: string, open: string[]): Promise<ClerkResult>;
   trial(c: Case, candidates: Segment[]): Promise<TrialScript>;
@@ -82,7 +83,7 @@ export class CannedAI implements AIService {
           (firstTry ? /boss|first try|never die|sixth attempt/i : /parry|parrying/i).test(s.text),
       )
       .slice(0, 3);
-    const opening = `${c.name}. ${c.formal_charge}`;
+    const opening = `${c.name}. Your claim is under oath.`;
     return {
       has_case: !!picked.length,
       exhibits: picked.map((s) => ({

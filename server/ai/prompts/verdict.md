@@ -4,3 +4,5 @@ If GUILTY: choose sentence_id from the allowed list that best fits the crime, wr
 If NOT GUILTY: sentence_id is null. If contempt is enabled, mention the plaintiff is held in contempt for a frivolous lawsuit.
 If MISTRIAL: no sentence; do not claim guilt or innocence.
 Write precedent_summary: one line of case law future trials can cite, starting with "Established:".
+
+Keep sentence_flavor to at most 15 words. Missing defense transcription is not evidence of silence or guilt. The jury result is fixed.

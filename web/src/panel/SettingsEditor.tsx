@@ -155,14 +155,14 @@ export function SettingsEditor({
           type="button"
           onClick={() =>
             field('phaseMs', {
-              CALL_TO_ORDER: 6000,
-              EXHIBITS: 10000,
+              CALL_TO_ORDER: 7000,
+              EXHIBITS: 8000,
               DEFENSE: 30000,
-              REBUTTAL: 12000,
+              REBUTTAL: 10000,
               JURY: 20000,
               VERDICT: 8000,
-              SENTENCING: 12000,
-              ADJOURN: 5000,
+              SENTENCING: 8000,
+              ADJOURN: 3000,
             })
           }
         >

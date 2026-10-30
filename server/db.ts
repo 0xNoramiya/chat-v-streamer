@@ -1,5 +1,6 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import { defaults, settingsSchema } from './config.js';
 import type {
   Case,
@@ -35,11 +36,22 @@ export class Store {
  CREATE TABLE IF NOT EXISTS plaintiffs(user_id TEXT PRIMARY KEY,login TEXT,wins INTEGER DEFAULT 0,losses INTEGER DEFAULT 0,contempts INTEGER DEFAULT 0);
  CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value_json TEXT);
  `);
-    this.db.pragma('user_version = 1');
+    this.db.exec(
+      'CREATE TABLE IF NOT EXISTS broadcasts(id TEXT PRIMARY KEY,channel_id TEXT,started_at_ms INTEGER,kind TEXT)',
+    );
+    for (const table of ['sessions', 'segments', 'cases', 'frames'])
+      if (
+        !this.all<{ name: string }>(`PRAGMA table_info(${table})`).some(
+          (c) => c.name === 'broadcast_id',
+        )
+      )
+        this.db.exec(`ALTER TABLE ${table} ADD COLUMN broadcast_id TEXT`);
+    this.db.pragma('user_version = 2');
     this.sessionStart = now;
     this.sessionId = Number(
       this.db.prepare('INSERT INTO sessions(started_at_ms) VALUES(?)').run(now).lastInsertRowid,
     );
+    this.useLocalBroadcast(now);
     this.db
       .prepare("UPDATE cases SET status='mistrial',verdict='mistrial' WHERE status='in_trial'")
       .run();
@@ -93,17 +105,24 @@ export class Store {
       id,
     );
   }
-  addSegment(text: string, start: number, end: number, source: Segment['source']): Segment {
+  addSegment(
+    text: string,
+    start: number,
+    end: number,
+    source: Segment['source'],
+    broadcastId = this.broadcastId,
+  ): Segment {
     const count = this.get<{ n: number }>('SELECT COUNT(*) n FROM segments')!.n;
     const id = `seg_${String(count + 1).padStart(6, '0')}`;
     this.run(
-      'INSERT INTO segments VALUES(?,?,?,?,?,?)',
+      'INSERT INTO segments(id,session_id,started_at_ms,ended_at_ms,text,source,broadcast_id) VALUES(?,?,?,?,?,?,?)',
       id,
       this.sessionId,
       start,
       end,
       text,
       source,
+      broadcastId,
     );
     return this.segment(id)!;
   }
@@ -115,10 +134,69 @@ export class Store {
       )?.t ?? this.sessionStart
     );
   }
+  get broadcastId() {
+    return (
+      this.get<{ broadcast_id: string }>(
+        'SELECT broadcast_id FROM sessions WHERE id=?',
+        this.sessionId,
+      )?.broadcast_id ?? null
+    );
+  }
+  broadcast() {
+    return this.get<{
+      id: string;
+      channel_id: string | null;
+      started_at_ms: number;
+      kind: 'local' | 'twitch';
+    }>('SELECT * FROM broadcasts WHERE id=?', this.broadcastId);
+  }
+  useLocalBroadcast(startedAt = this.sessionStart) {
+    const id = `local:${randomUUID()}`;
+    this.bindBroadcast({ id, channelId: null, startedAt, kind: 'local' });
+    return id;
+  }
+  bindBroadcast(info: {
+    id: string;
+    channelId: string | null;
+    startedAt: number;
+    kind: 'local' | 'twitch';
+  }) {
+    this.run(
+      'INSERT OR IGNORE INTO broadcasts VALUES(?,?,?,?)',
+      info.id,
+      info.channelId,
+      info.startedAt,
+      info.kind,
+    );
+    this.run(
+      'UPDATE sessions SET broadcast_id=?,stream_started_at_ms=? WHERE id=?',
+      info.id,
+      info.startedAt,
+      this.sessionId,
+    );
+  }
+  eligibleSegment(segment: Segment, now: number) {
+    const b = this.broadcast();
+    return (
+      !!b &&
+      segment.broadcast_id === b.id &&
+      segment.started_at_ms >= b.started_at_ms &&
+      segment.started_at_ms <= now + 2000 &&
+      (b.kind !== 'twitch' || segment.source !== 'sim')
+    );
+  }
   segment(id: string): Segment | undefined {
-    const s = this.get<Segment>('SELECT * FROM segments WHERE id=?', id);
+    const s = this.get<Segment & { stream_start: number | null }>(
+      'SELECT s.*,b.started_at_ms stream_start FROM segments s LEFT JOIN broadcasts b ON b.id=s.broadcast_id WHERE s.id=?',
+      id,
+    );
     return s
-      ? { ...s, timestamp: timestamp(s.started_at_ms - this.streamStart(s.session_id)) }
+      ? {
+          ...s,
+          timestamp: timestamp(
+            s.started_at_ms - (s.stream_start ?? this.streamStart(s.session_id)),
+          ),
+        }
       : undefined;
   }
   segments(): Segment[] {

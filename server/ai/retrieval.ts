@@ -10,19 +10,21 @@ export function ftsQuery(hints: string[]) {
 }
 export function retrieve(store: Store, hints: string[], now: number): Segment[] {
   const recent = store.all<{ id: string }>(
-    'SELECT id FROM segments WHERE session_id=? AND started_at_ms>=? ORDER BY started_at_ms DESC LIMIT 400',
-    store.sessionId,
+    'SELECT id FROM segments WHERE broadcast_id=? AND started_at_ms>=? ORDER BY started_at_ms DESC LIMIT 400',
+    store.broadcastId,
     now - 45 * 60000,
   );
   const query = ftsQuery(hints);
   const matches = query
     ? store.all<{ id: string }>(
-        `SELECT s.id FROM segments_fts f JOIN segments s ON s.id=f.id WHERE segments_fts MATCH ? AND s.session_id IN (SELECT id FROM sessions ORDER BY id DESC LIMIT 3) ORDER BY rank LIMIT 30`,
+        `SELECT s.id FROM segments_fts f JOIN segments s ON s.id=f.id WHERE segments_fts MATCH ? AND s.broadcast_id=? ORDER BY rank LIMIT 30`,
         query,
+        store.broadcastId,
       )
     : [];
   return [...new Set([...recent, ...matches].map((s) => s.id))]
     .map((id) => store.segment(id)!)
+    .filter((s) => store.eligibleSegment(s, now))
     .sort((a, b) => a.started_at_ms - b.started_at_ms);
 }
 export function precedents(store: Store, charge: string): Precedent[] {
@@ -35,4 +37,9 @@ export function precedents(store: Store, charge: string): Precedent[] {
     : [];
 }
 export const formatCandidates = (segments: Segment[]) =>
-  segments.map((s) => `[${s.id} | ${s.timestamp}] ${s.text}`).join('\n');
+  segments
+    .map(
+      (s) =>
+        `[${s.id} | ${s.timestamp} | source=${s.source} | broadcast=${s.broadcast_id} | app_session=${s.session_id}] ${s.text}`,
+    )
+    .join('\n');

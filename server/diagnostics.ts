@@ -52,20 +52,13 @@ export function diagnostics(app: Express, runner: CourtRunner) {
         await twitch.sendChat('Court of Chat diagnostic: the gavel is operational.');
         break;
       case 'setTitle': {
-        const info = await twitch.getStream();
-        const id = -Date.now();
-        runner.store.run(
-          'INSERT INTO sentences_applied VALUES(?,?,?,?,0)',
-          id,
+        await runner.sentencer.applyTitle(
+          -Date.now(),
           'diagnostic_title',
-          JSON.stringify({
-            originalTitle: info.title,
-            title: '[CONVICTED] Court of Chat title test',
-            dryRun: process.env.DRY_RUN !== 'false',
-          }),
-          Date.now() + 30000,
+          '[CONVICTED] Court of Chat title test',
+          30000,
+          Date.now(),
         );
-        await twitch.setTitle('[CONVICTED] Court of Chat title test');
         result = { ok: true, revertsInSeconds: 30 };
         break;
       }

@@ -1,5 +1,16 @@
 export class MicCapture {
   private stream?: MediaStream;
+  private clientId = crypto.randomUUID();
+  private sequence = 0;
+  private heartbeat?: ReturnType<typeof setInterval>;
+  private disposed = false;
+  private report(state: 'starting' | 'recording' | 'stopped' | 'error') {
+    void fetch('/api/capture', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientId: this.clientId, sequence: ++this.sequence, state }),
+    }).catch(() => this.status('Court connection unavailable'));
+  }
   private context?: AudioContext;
   private recorder?: MediaRecorder;
   private chunkTimer?: ReturnType<typeof setTimeout>;
@@ -14,27 +25,46 @@ export class MicCapture {
   ) {}
   async start() {
     if (this.running) return;
-    this.stream = await navigator.mediaDevices.getUserMedia({
-      audio: { echoCancellation: true, noiseSuppression: true },
-      video: false,
-    });
-    this.context = new AudioContext();
-    await this.context.resume();
-    const source = this.context.createMediaStreamSource(this.stream),
-      analyser = this.context.createAnalyser();
-    analyser.fftSize = 1024;
-    source.connect(analyser);
-    const samples = new Float32Array(analyser.fftSize);
-    this.meterTimer = setInterval(() => {
-      analyser.getFloatTimeDomainData(samples);
-      this.energy = Math.max(
-        this.energy,
-        Math.sqrt(samples.reduce((sum, x) => sum + x * x, 0) / samples.length),
-      );
-    }, 100);
-    this.running = true;
-    this.status('Recording');
-    this.next();
+    this.report('starting');
+    try {
+      this.stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true },
+        video: false,
+      });
+      if (this.disposed) {
+        this.stream.getTracks().forEach((t) => t.stop());
+        return;
+      }
+      this.context = new AudioContext();
+      await this.context.resume();
+      const source = this.context.createMediaStreamSource(this.stream),
+        analyser = this.context.createAnalyser();
+      analyser.fftSize = 1024;
+      source.connect(analyser);
+      const samples = new Float32Array(analyser.fftSize);
+      this.meterTimer = setInterval(() => {
+        analyser.getFloatTimeDomainData(samples);
+        this.energy = Math.max(
+          this.energy,
+          Math.sqrt(samples.reduce((sum, x) => sum + x * x, 0) / samples.length),
+        );
+      }, 100);
+      this.running = true;
+      this.status('Recording');
+      this.report('recording');
+      this.heartbeat = setInterval(() => this.report('recording'), 3000);
+      for (const track of this.stream.getTracks()) track.onended = () => this.stop();
+      this.next();
+    } catch (error) {
+      this.running = false;
+      clearInterval(this.heartbeat);
+      clearInterval(this.meterTimer);
+      this.stream?.getTracks().forEach((t) => t.stop());
+      if (this.context && this.context.state !== 'closed') void this.context.close();
+      this.report('error');
+      this.status('Mic unavailable');
+      throw error;
+    }
   }
   private next() {
     if (!this.running || !this.stream) return;
@@ -57,6 +87,7 @@ export class MicCapture {
       if (audible && blob.size && this.pending < 8) {
         this.pending++;
         const form = new FormData();
+        form.append('clientId', this.clientId);
         form.append('audio', blob, recorder.mimeType.includes('mp4') ? 'chunk.mp4' : 'chunk.webm');
         form.append('started_at_ms', String(start));
         form.append('ended_at_ms', String(end));
@@ -68,7 +99,10 @@ export class MicCapture {
             }
             if (this.running) this.status('Recording');
           })
-          .catch((e) => this.status(e.message))
+          .catch((e) => {
+            this.report('error');
+            this.status(e.message);
+          })
           .finally(() => this.pending--);
       } else if (this.running && this.pending >= 8)
         this.status('Transcription is busy; chunk skipped');
@@ -79,12 +113,15 @@ export class MicCapture {
     }, this.chunkMs);
   }
   stop() {
+    this.disposed = true;
     this.running = false;
+    clearInterval(this.heartbeat);
+    this.report('stopped');
     clearTimeout(this.chunkTimer);
     clearInterval(this.meterTimer);
     if (this.recorder?.state === 'recording') this.recorder.stop();
     this.stream?.getTracks().forEach((track) => track.stop());
-    void this.context?.close();
+    if (this.context && this.context.state !== 'closed') void this.context.close();
     this.status('Mic stopped');
   }
 }

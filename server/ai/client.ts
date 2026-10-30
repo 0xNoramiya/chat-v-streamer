@@ -7,6 +7,7 @@ export type Role = keyof typeof jsonSchemas;
 const style = readFileSync(new URL('./prompts/style.md', import.meta.url), 'utf8');
 export class AIClient {
   readonly sdk: OpenAI;
+  status = 'OpenAI configured · unverified';
   constructor(
     private log: (kind: string, message: string) => void,
     sdk?: OpenAI,
@@ -17,17 +18,21 @@ export class AIClient {
   async checkModels() {
     try {
       const list = await this.sdk.models.list({ timeout: 5000 });
+      this.status = 'OpenAI models listed · calls unverified';
       const ids = new Set(list.data.map((m) => m.id));
       for (const [env, id] of Object.entries({
         OPENAI_MODEL_FAST: config.OPENAI_MODEL_FAST,
         OPENAI_MODEL_SMART: config.OPENAI_MODEL_SMART,
       }))
-        if (!ids.has(id))
+        if (!ids.has(id)) {
+          this.status = 'OpenAI model unavailable · fallback';
           this.log(
             'ai',
             `WARNING: Model ${id} unavailable. Change ${env} in .env; canned fallback stays active.`,
           );
+        }
     } catch {
+      this.status = 'OpenAI unavailable · fallback';
       this.log(
         'ai',
         'Unable to list OpenAI models. Check OPENAI_API_KEY; bounded fallbacks remain available.',
@@ -59,7 +64,9 @@ export class AIClient {
           },
           { timeout, signal: AbortSignal.timeout(timeout) },
         );
-        return schema.parse(normalizeLengths(JSON.parse(response.output_text)));
+        const parsed = schema.parse(normalizeLengths(JSON.parse(response.output_text)));
+        this.status = 'OpenAI responding';
+        return parsed;
       } catch {
         this.log(
           'ai',
@@ -67,6 +74,7 @@ export class AIClient {
         );
       }
     }
+    this.status = 'OpenAI fallback · last call failed';
     return fallback;
   }
 }

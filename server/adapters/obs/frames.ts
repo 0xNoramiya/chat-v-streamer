@@ -5,7 +5,8 @@ import type { ObsAdapter } from './types.js';
 import type { Store } from '../../db.js';
 export function nearestFrame(store: Store, startedAt: number) {
   const row = store.get<{ id: number; path: string }>(
-    'SELECT id,path FROM frames WHERE captured_at_ms BETWEEN ? AND ? ORDER BY ABS(captured_at_ms-?) LIMIT 1',
+    'SELECT id,path FROM frames WHERE broadcast_id=? AND captured_at_ms BETWEEN ? AND ? ORDER BY ABS(captured_at_ms-?) LIMIT 1',
+    store.broadcastId,
     startedAt - 20000,
     startedAt + 20000,
     startedAt,
@@ -31,6 +32,7 @@ export class FrameBuffer {
     if (this.capturing) return;
     this.capturing = true;
     try {
+      const broadcastId = this.store.broadcastId;
       const image = await this.obs.capture?.(this.source());
       if (image) {
         if (!/^data:image\/(jpeg|jpg);base64,/.test(image) || image.length > 4 * 1024 * 1024)
@@ -38,7 +40,12 @@ export class FrameBuffer {
         const path = `data/frames/${now}-${randomUUID()}.jpg`;
         await mkdir('data/frames', { recursive: true });
         await writeFile(path, Buffer.from(image.slice(image.indexOf(',') + 1), 'base64'));
-        this.store.run('INSERT INTO frames(captured_at_ms,path) VALUES(?,?)', now, path);
+        this.store.run(
+          'INSERT INTO frames(captured_at_ms,path,broadcast_id) VALUES(?,?,?)',
+          now,
+          path,
+          broadcastId,
+        );
       }
       await this.prune(now);
     } catch {

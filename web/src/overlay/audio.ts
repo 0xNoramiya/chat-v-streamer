@@ -2,60 +2,70 @@ import type { CourtEvent } from '../shared/types';
 type Caption = Extract<CourtEvent, { type: 'caption' }>;
 export class CourtAudio {
   private context?: AudioContext;
-  private queue: Caption[] = [];
-  private playing = false;
+  private scope = 'idle';
+  private current?: Caption;
   private audio?: HTMLAudioElement;
   private timer?: ReturnType<typeof setTimeout>;
   private generation = 0;
+  private offset = 0;
   constructor(private show: (caption: Caption | null) => void) {}
   unlock() {
     this.context ??= new AudioContext();
     void this.context.resume();
   }
+  sync(scope: string, serverNow: number) {
+    this.offset = serverNow - Date.now();
+    if (this.scope !== scope) {
+      this.clear();
+      this.scope = scope;
+    }
+  }
   enqueue(caption: Caption) {
-    this.queue.push(caption);
-    void this.next();
+    if (
+      caption.scope !== this.scope ||
+      caption.expiresAt <= Date.now() + this.offset ||
+      this.current?.id === caption.id
+    )
+      return;
+    this.clear();
+    this.current = caption;
+    this.show(caption);
+    this.timer = setTimeout(
+      () => this.clear(),
+      Math.max(0, caption.expiresAt - Date.now() - this.offset),
+    );
+  }
+  attach(event: Extract<CourtEvent, { type: 'speech' }>) {
+    if (
+      this.current?.id !== event.captionId ||
+      event.scope !== this.scope ||
+      event.expiresAt <= Date.now() + this.offset
+    )
+      return;
+    const generation = this.generation,
+      audio = new Audio(event.url);
+    this.audio = audio;
+    audio.preload = 'auto';
+    audio.onloadedmetadata = async () => {
+      if (generation !== this.generation || this.current?.id !== event.captionId) return;
+      const remaining = event.expiresAt - Date.now() - this.offset;
+      if (!Number.isFinite(audio.duration) || audio.duration * 1000 + 150 > remaining) return;
+      try {
+        await audio.play();
+        if (generation !== this.generation) audio.pause();
+      } catch {
+        /* Keep the already-visible caption if autoplay is blocked. */
+      }
+    };
   }
   clear() {
     this.generation++;
-    this.queue = [];
-    this.playing = false;
+    this.current = undefined;
     this.audio?.pause();
     if (this.audio) this.audio.src = '';
+    this.audio = undefined;
     clearTimeout(this.timer);
     this.show(null);
-  }
-  private async next() {
-    if (this.playing || !this.queue.length) return;
-    this.playing = true;
-    const caption = this.queue.shift()!,
-      generation = this.generation;
-    this.show(caption);
-    let done = false;
-    const finish = () => {
-      if (done || generation !== this.generation) return;
-      done = true;
-      clearTimeout(this.timer);
-      this.playing = false;
-      this.show(null);
-      void this.next();
-    };
-    this.timer = setTimeout(finish, caption.url ? 12000 : (caption.duration ?? 6000));
-    if (caption.url) {
-      const audio = new Audio(caption.url);
-      this.audio = audio;
-      audio.onended = finish;
-      audio.onerror = () => {
-        clearTimeout(this.timer);
-        this.timer = setTimeout(finish, caption.duration ?? 6000);
-      };
-      try {
-        await audio.play();
-      } catch {
-        clearTimeout(this.timer);
-        this.timer = setTimeout(finish, caption.duration ?? 6000);
-      }
-    }
   }
   sfx(name: string) {
     try {

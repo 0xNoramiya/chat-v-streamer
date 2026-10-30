@@ -128,7 +128,11 @@ export function Panel() {
             </p>
           </div>
           <span className={`dry-badge ${s.status.dryRun ? '' : 'live'}`}>
-            {s.status.dryRun ? 'DRY RUN' : 'LIVE ACTIONS'}
+            {s.status.sim
+              ? `SIMULATOR · ${s.status.dryRun ? 'DRY RUN' : 'dry run off'}`
+              : s.status.dryRun
+                ? 'DRY RUN'
+                : 'LIVE ACTIONS'}
           </span>
         </header>
         <div className="status-strip">
@@ -138,14 +142,35 @@ export function Panel() {
             ['EventSub', s.status.eventsub],
             ['OBS', s.status.obs],
             ['AI', s.status.ai],
-            ['Mic', micState],
+            ['Evidence', s.status.evidence ?? 'Evidence scope unknown'],
+            ['Mic', s.status.capture?.detail ?? micState],
           ].map(([k, v]) => (
             <span key={k}>
-              <i className={/disconnected|unavailable|reconnecting/.test(v) ? 'warn' : ''} />
+              <i
+                className={
+                  /disconnected|unavailable|reconnecting|missing|failed|expired|unverified|not yet verified|not verified|fallback|connect broadcaster|off/.test(
+                    v,
+                  )
+                    ? 'warn'
+                    : ''
+                }
+              />
               <b>{k}</b> {v}
             </span>
           ))}
         </div>
+        {!!s.status.pendingRealRestores && (
+          <p className="notice">
+            {s.status.pendingRealRestores} live title restoration obligation(s) saved. Rehearsal
+            cannot satisfy these jobs.
+          </p>
+        )}
+        {!!s.status.pendingUnverifiedRestores && (
+          <p className="notice">
+            {s.status.pendingUnverifiedRestores} unverified legacy title job(s) retained for audit.
+            Recovery waits for a matching recorded live title.
+          </p>
+        )}
         {error && (
           <div role="alert" className="error-box">
             {error}
@@ -219,7 +244,12 @@ export function Panel() {
                     </div>
                     <div className="button-row">
                       <button onClick={() => action('SKIP')}>Skip phase →</button>
-                      <button onClick={() => action('SERVED')}>Sentence served</button>
+                      <button
+                        disabled={!s.sentences.some((sentence) => sentence.case_id === t.caseId)}
+                        onClick={() => action('SERVED')}
+                      >
+                        Sentence served
+                      </button>
                     </div>
                     <div className="button-row">
                       {t.exhibits.map((e, i) => (
@@ -377,6 +407,7 @@ export function Panel() {
             <div className="button-row">
               <button
                 className="primary"
+                disabled={!s.status.transcriptionConfigured}
                 onClick={() =>
                   run(async () => {
                     mic.current?.stop();
@@ -418,6 +449,9 @@ export function Panel() {
                   <p>{seg.text}</p>
                   <small>
                     {seg.id} · {seg.source}
+                    {seg.broadcast_id !== s.status.broadcastId
+                      ? ' · audit only: outside the active broadcast'
+                      : ''}
                   </small>
                 </article>
               ))}

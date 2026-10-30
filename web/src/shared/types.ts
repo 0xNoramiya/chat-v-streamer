@@ -19,6 +19,7 @@ export interface User {
   vip?: boolean;
 }
 export interface Segment {
+  broadcast_id: string | null;
   id: string;
   session_id: number;
   started_at_ms: number;
@@ -28,6 +29,8 @@ export interface Segment {
   timestamp: string;
 }
 export interface Case {
+  broadcast_id?: string | null;
+  defense_capture?: string;
   id: number;
   case_no: number;
   status: string;
@@ -51,6 +54,8 @@ export interface Case {
   name: string;
 }
 export interface Exhibit {
+  source?: Segment['source'];
+  broadcast_id?: string | null;
   segment_id: string;
   framing: string;
   text: string;
@@ -139,6 +144,10 @@ export interface Trial {
   objections: string[];
   objectionLastAt: number;
   sentenceServed: boolean;
+  sentenceState?: {
+    state: 'pending' | 'applied' | 'failed' | 'rehearsed' | 'none';
+    detail: string;
+  };
 }
 export interface CourtState {
   trial: Trial | null;
@@ -157,6 +166,7 @@ export interface ActiveSentence {
   endsAt: number;
 }
 export interface Snapshot {
+  caption?: CaptionEvent;
   sentences: ActiveSentence[];
   court: CourtState;
   cases: Case[];
@@ -165,6 +175,15 @@ export interface Snapshot {
   records: { precedents: Precedent[]; plaintiffs: Plaintiff[]; convictions: Case[] };
   logs: LogEntry[];
   status: {
+    capture?: {
+      state: 'unavailable' | 'off' | 'pending' | 'recording' | 'error' | 'simulated' | 'manual';
+      detail: string;
+    };
+    transcriptionConfigured?: boolean;
+    evidence?: string;
+    broadcastId?: string | null;
+    pendingRealRestores?: number;
+    pendingUnverifiedRestores?: number;
     sim: boolean;
     dryRun: boolean;
     twitch: string;
@@ -189,7 +208,22 @@ export interface Plaintiff {
   losses: number;
   contempts: number;
 }
+export interface CaptionEvent {
+  type: 'caption';
+  id: string;
+  scope: string;
+  speaker: string;
+  text: string;
+  sentAt: number;
+  expiresAt: number;
+}
+export interface SpeechEvent {
+  type: 'speech';
+  captionId: string;
+  scope: string;
+  url: string;
+  sentAt: number;
+  expiresAt: number;
+}
 export type CourtEvent =
-  | { type: 'caption'; speaker: string; text: string; url?: string; duration?: number }
-  | { type: 'sfx'; name: string }
-  | { type: 'precedent'; text: string };
+  CaptionEvent | SpeechEvent | { type: 'sfx'; name: string } | { type: 'precedent'; text: string };

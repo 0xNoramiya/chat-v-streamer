@@ -1,3 +1,4 @@
+import { verifyOverlayFixtures } from './overlay-fixtures.js';
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, symlink, rm } from 'node:fs/promises';
@@ -100,6 +101,7 @@ try {
     return s.court.trial?.phase === 'EXHIBITS';
   });
   await overlay.getByText('“This boss is easy, first try guaranteed.”', { exact: true }).waitFor();
+  const demoSnapshot = await get();
   const png = await overlay.screenshot({
     path: resolve('artifacts/overlay.png'),
     omitBackground: true,
@@ -149,9 +151,11 @@ try {
     true,
   );
   assert.deepEqual(errors, []);
+  const phaseChecks = await verifyOverlayFixtures(browser, demoSnapshot);
   console.log(
     JSON.stringify({
       ok: true,
+      phaseChecks,
       checks: [
         'panel route',
         'overlay route',
