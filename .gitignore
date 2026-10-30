@@ -1,0 +1,8 @@
+node_modules/
+.env
+data/
+web/dist/
+.git-history/
+*.log
+coverage/
+test-results/
