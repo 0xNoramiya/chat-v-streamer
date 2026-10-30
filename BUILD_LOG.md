@@ -45,3 +45,10 @@
 +- Decisions: request moderation:read and channel:read:vips in addition to specified scopes so timeout protection can be checked authoritatively. If checks fail, skip the timeout. Native polls remain supplementary to canonical per-user chat votes, avoiding double counting; optional rewards match the exact title “File a lawsuit”.
 +- Read Twurple declarations for auth, EventSub and every Helix call and official Twitch WebSocket documentation at https://dev.twitch.tv/docs/eventsub/handling-websocket-events/.
 +- Codex implemented the adapter and credential-free contract tests. Authenticated Twitch actions require accounts and a live broadcast; these are not claimed as exercised.
+
+## M5 — OBS
++- Added real OBS WebSocket v5 connection/reconnect, bounded requests, serialized scene transitions, persisted original-scene recovery and deferred restoration if OBS disconnects during a mistrial.
++- Added 640px JPEG capture, three-hour pruning, nearest screenshot within 20 seconds and stored exhibit/frame associations; absent OBS or frames uses the original placeholder.
++- Read installed request/response declarations and official obs-websocket-js/protocol documentation before authoring requests.
++- Validation: strict build, 21 tests including screenshot matching bounds, complete offline trial; actual OBS requires an OBS instance and has not been claimed as tested.
++- Codex implemented the real adapter and ring buffer; no downloaded art or audio.

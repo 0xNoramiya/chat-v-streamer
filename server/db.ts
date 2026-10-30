@@ -33,7 +33,7 @@ export class Store {
  streamStart(session=this.sessionId){return this.get<{t:number}>('SELECT COALESCE(stream_started_at_ms,started_at_ms) t FROM sessions WHERE id=?',session)?.t??this.sessionStart}
  segment(id:string):Segment|undefined{const s=this.get<Segment>('SELECT * FROM segments WHERE id=?',id);return s?{...s,timestamp:timestamp(s.started_at_ms-this.streamStart(s.session_id))}:undefined}
  segments():Segment[]{return this.all<{id:string}>('SELECT id FROM segments ORDER BY started_at_ms DESC LIMIT 100').map(s=>this.segment(s.id)!)}
- saveExhibits(caseId:number,exhibits:Exhibit[]){exhibits.forEach((e,i)=>this.run('INSERT OR REPLACE INTO exhibits VALUES(?,?,?,?,?,?,?)',caseId,i,e.segment_id,e.framing,null,+e.struck,e.added_in))}
+ saveExhibits(caseId:number,exhibits:Exhibit[]){exhibits.forEach((e,i)=>this.run('INSERT OR REPLACE INTO exhibits VALUES(?,?,?,?,?,?,?)',caseId,i,e.segment_id,e.framing,e.frame_url?this.get<{id:number}>('SELECT id FROM frames WHERE path=?',`data${e.frame_url}`)?.id??null:null,+e.struck,e.added_in))}
  records(){return {precedents:this.all<Precedent>('SELECT * FROM precedents ORDER BY created_at_ms DESC LIMIT 50'),plaintiffs:this.all<Plaintiff>('SELECT * FROM plaintiffs ORDER BY wins DESC,contempts DESC LIMIT 30'),convictions:this.cases().filter(c=>c.verdict==='guilty')}}
  close(){this.db.close()}
 }

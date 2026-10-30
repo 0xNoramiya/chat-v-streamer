@@ -1,4 +1,5 @@
 import type {Store} from '../db.js';
+import {nearestFrame} from '../adapters/obs/frames.js';
 import {retrieve} from '../ai/retrieval.js';
 import {localSafe} from '../ai/moderation.js';
 import {config} from '../config.js';
@@ -78,7 +79,7 @@ export class CourtRunner {
  }}
  getCase(id:number){const c=this.cases().find(x=>x.id===id);if(!c)throw Error('Case not found');return c}
  candidates(hints:string[]=[]):Segment[]{return retrieve(this.store,hints,this.clock.now())}
- exhibit(pick:{segment_id:string;framing:string},added_in:Exhibit['added_in']):Exhibit|undefined{const s=this.store.segment(pick.segment_id);if(!s)return undefined;return {...pick,text:s.text,timestamp:s.timestamp,frame_url:null,struck:false,added_in}}
+ exhibit(pick:{segment_id:string;framing:string},added_in:Exhibit['added_in']):Exhibit|undefined{const s=this.store.segment(pick.segment_id);if(!s)return undefined;return {...pick,text:s.text,timestamp:s.timestamp,frame_url:nearestFrame(this.store,s.started_at_ms)?.url??null,struck:false,added_in}}
  async file(user:User,charge:string,skipCosign=false){const error=filingError(charge,user.id,this.cases(),this.settings,this.clock.now());if(error){await this.twitch.sendChat(error);return null}
   const now=this.clock.now(),count=this.store.get<{n:number}>('SELECT COUNT(*) n FROM cases')!.n+1;const threshold=cosignThreshold(this.uniqueChatters(),this.settings);
   const id=Number(this.store.run('INSERT INTO cases(case_no,status,plaintiff_id,plaintiff_login,raw_charge,threshold,created_at_ms) VALUES(?,?,?,?,?,?,?)',count,'filing',user.id,user.login,charge,threshold,now).lastInsertRowid);
