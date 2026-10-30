@@ -1,3 +1,23 @@
-import type {User} from '../../../web/src/shared/types.js';
-export interface StreamInfo {live:boolean;title:string;startedAt:number|null}
-export interface TwitchAdapter {status:string;eventsubStatus:string;botId?:string;connect?():Promise<void>;close?():void;onMessage?:(u:User,text:string)=>void;onRedemption?:(u:User,text:string)=>void;sendChat(text:string):Promise<void>;setTitle(text:string):Promise<void>;timeout(user:User,seconds:number,reason:string):Promise<void>;createClip():Promise<void>;createMarker(description:string):Promise<void>;getStream():Promise<StreamInfo>;createPoll?():Promise<void>}
+import type { User } from '../../../web/src/shared/types.js';
+export interface StreamInfo {
+  live: boolean;
+  title: string;
+  startedAt: number | null;
+  displayName?: string;
+}
+export interface TwitchAdapter {
+  status: string;
+  eventsubStatus: string;
+  botId?: string;
+  connect?(): Promise<void>;
+  close?(): void;
+  onMessage?: (u: User, text: string) => void;
+  onRedemption?: (u: User, text: string) => void;
+  sendChat(text: string): Promise<void>;
+  setTitle(text: string): Promise<void>;
+  timeout(user: User, seconds: number, reason: string): Promise<void>;
+  createClip(): Promise<void>;
+  createMarker(description: string): Promise<void>;
+  getStream(): Promise<StreamInfo>;
+  createPoll?(): Promise<void>;
+}

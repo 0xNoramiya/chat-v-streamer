@@ -3,6 +3,7 @@
 Local-first Twitch courtroom. Node 20+, strict TypeScript, Express + ws + SQLite/FTS5 server; React/Vite panel and transparent 1920×1080 overlay.
 
 ## Architecture
+
 - `server/court/machine.ts` is a pure reducer. Inject time into the runner; timers never wait for AI.
 - `server/court/` pure rules are isolated from adapter I/O; the runner coordinates persistence and effects.
 - `server/adapters/` has explicit real/simulator interfaces. SIM_MODE defaults true; DRY_RUN defaults true.
@@ -11,10 +12,24 @@ Local-first Twitch courtroom. Node 20+, strict TypeScript, Express + ws + SQLite
 - `data/` contains local tokens, database, audio and frames. Never commit it or log secrets.
 
 ## Commands
+
 `npm install`, `npm run dev`, `npm run build`, `npm start`, `npm test`, `npm run typecheck`, `npm run demo:check`.
 
 ## Conventions
+
 Small typed modules, Zod at HTTP/AI boundaries, no `any`, no franchise art/audio. Jury votes determine guilt. Mistrial restores OBS and prevents sentencing. Keep runnable at every milestone. Add tests for behavior and regressions; use injected clocks for complete trials. Read installed integration typings and official docs before writing API calls.
 
 ## Delivery
+
 Complete M1–M6 in order, append decisions/validation/Codex usage to BUILD_LOG.md and commit each milestone. Preserve verbatim evidence, moderation, streamer control, and automatic sentencing above optional polish.
+
+## UI and verification
+
+- Panel development URL: `http://localhost:5173/panel`; overlay: `/overlay` on that port. Production/OBS uses `http://localhost:8787/overlay` after building.
+- `npm run browser:check` uses a temporary isolated server/database, verifies the full demo and transparent camera pixels, and writes ignored `artifacts/` screenshots. Install Chromium with `npx playwright install chromium` once.
+- Use `npm run format` / `npm run format:check` for the established formatting.
+- Keep the overlay HTML root transparent as well as the body. Test actual PNG alpha; a transparent body alone is insufficient because panel CSS is in the shared bundle.
+- JSON runtime settings are validated and stored in SQLite. Do not add an action that bypasses sentence approval, severity limits or DRY_RUN.
+- A configured OpenAI key enables AI even with simulated Twitch/OBS. Live moderation failures fail closed. The offline clerk supports conservative rehearsal cases, not general personal allegations.
+- Native polls supplement chat commands; never merge anonymous poll counts into identity-based chat votes.
+- Do not delete the database to recover a crash: it holds title and OBS restoration jobs. Boot marks interrupted/open cases as mistrial/expired instead of resuming timers unsafely.

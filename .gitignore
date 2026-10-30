@@ -6,3 +6,4 @@ web/dist/
 *.log
 coverage/
 test-results/
+artifacts/

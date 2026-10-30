@@ -1,6 +1,38 @@
-import type {Store} from '../db.js';
-import type {Segment,Precedent} from '../../web/src/shared/types.js';
-export function ftsQuery(hints:string[]){return hints.flatMap(s=>s.toLowerCase().match(/[a-z0-9]+/g)??[]).filter(w=>w.length>2).slice(0,16).map(w=>`"${w}"`).join(' OR ')}
-export function retrieve(store:Store,hints:string[],now:number):Segment[]{const recent=store.all<{id:string}>('SELECT id FROM segments WHERE session_id=? AND started_at_ms>=? ORDER BY started_at_ms DESC LIMIT 400',store.sessionId,now-45*60000);const query=ftsQuery(hints);const matches=query?store.all<{id:string}>(`SELECT s.id FROM segments_fts f JOIN segments s ON s.id=f.id WHERE segments_fts MATCH ? AND s.session_id IN (SELECT id FROM sessions ORDER BY id DESC LIMIT 3) ORDER BY rank LIMIT 30`,query):[];return [...new Set([...recent,...matches].map(s=>s.id))].map(id=>store.segment(id)!).sort((a,b)=>a.started_at_ms-b.started_at_ms)}
-export function precedents(store:Store,charge:string):Precedent[]{const query=ftsQuery([charge]);return query?store.all<Precedent>('SELECT p.* FROM precedents_fts f JOIN precedents p ON p.id=f.id WHERE precedents_fts MATCH ? ORDER BY rank LIMIT 5',query):[]}
-export const formatCandidates=(segments:Segment[])=>segments.map(s=>`[${s.id} | ${s.timestamp}] ${s.text}`).join('\n');
+import type { Store } from '../db.js';
+import type { Segment, Precedent } from '../../web/src/shared/types.js';
+export function ftsQuery(hints: string[]) {
+  return hints
+    .flatMap((s) => s.toLowerCase().match(/[a-z0-9]+/g) ?? [])
+    .filter((w) => w.length > 2)
+    .slice(0, 16)
+    .map((w) => `"${w}"`)
+    .join(' OR ');
+}
+export function retrieve(store: Store, hints: string[], now: number): Segment[] {
+  const recent = store.all<{ id: string }>(
+    'SELECT id FROM segments WHERE session_id=? AND started_at_ms>=? ORDER BY started_at_ms DESC LIMIT 400',
+    store.sessionId,
+    now - 45 * 60000,
+  );
+  const query = ftsQuery(hints);
+  const matches = query
+    ? store.all<{ id: string }>(
+        `SELECT s.id FROM segments_fts f JOIN segments s ON s.id=f.id WHERE segments_fts MATCH ? AND s.session_id IN (SELECT id FROM sessions ORDER BY id DESC LIMIT 3) ORDER BY rank LIMIT 30`,
+        query,
+      )
+    : [];
+  return [...new Set([...recent, ...matches].map((s) => s.id))]
+    .map((id) => store.segment(id)!)
+    .sort((a, b) => a.started_at_ms - b.started_at_ms);
+}
+export function precedents(store: Store, charge: string): Precedent[] {
+  const query = ftsQuery([charge]);
+  return query
+    ? store.all<Precedent>(
+        'SELECT p.* FROM precedents_fts f JOIN precedents p ON p.id=f.id WHERE precedents_fts MATCH ? ORDER BY rank LIMIT 5',
+        query,
+      )
+    : [];
+}
+export const formatCandidates = (segments: Segment[]) =>
+  segments.map((s) => `[${s.id} | ${s.timestamp}] ${s.text}`).join('\n');

@@ -4,6 +4,7 @@ Pick up to 3 segments that best support the charge. You may ONLY reference segme
 Prefer direct, specific, funny receipts. Order them to build the case: the claim first, the contradiction after.
 You may cite one precedent by ID if it is clearly relevant, otherwise null.
 Write:
+
 - opening_line: Judge Docket opens court, names the case and the charge.
 - exhibit_lines: one per exhibit, D.A. Receipts presents it by letter (Exhibit A, B, C). Refer to what it shows without repeating the quote word for word.
 - defense_prompt: Judge Docket invites the defendant to defend himself and mentions he has 30 seconds.

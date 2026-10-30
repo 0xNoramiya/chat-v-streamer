@@ -1,4 +1,43 @@
-import {useEffect,useState} from 'react';
-import type {Snapshot,CourtEvent} from './types';
-export async function api(path:string,body:unknown={}){const response=await fetch(`/api/${path}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});const result=await response.json();if(!response.ok)throw Error(result.error??'Request failed');return result}
-export function useCourt(panel:boolean,onEvent?:(event:CourtEvent)=>void){const [snapshot,setSnapshot]=useState<Snapshot|null>(null),[connected,setConnected]=useState(false);useEffect(()=>{let socket:WebSocket,retry:ReturnType<typeof setTimeout>,closed=false;const connect=()=>{socket=new WebSocket(`${location.protocol==='https:'?'wss:':'ws:'}//${location.host}/ws?role=${panel?'panel':'overlay'}`);socket.onopen=()=>setConnected(true);socket.onmessage=e=>{const msg=JSON.parse(e.data);if(msg.type==='snapshot')setSnapshot(msg.data);else onEvent?.(msg.data)};socket.onclose=()=>{setConnected(false);if(!closed)retry=setTimeout(connect,1500)}};connect();return()=>{closed=true;clearTimeout(retry);socket?.close()};},[panel,onEvent]);return {snapshot,connected}}
+import { useEffect, useState } from 'react';
+import type { Snapshot, CourtEvent } from './types';
+export async function api(path: string, body: unknown = {}) {
+  const response = await fetch(`/api/${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const result = await response.json();
+  if (!response.ok) throw Error(result.error ?? 'Request failed');
+  return result;
+}
+export function useCourt(panel: boolean, onEvent?: (event: CourtEvent) => void) {
+  const [snapshot, setSnapshot] = useState<Snapshot | null>(null),
+    [connected, setConnected] = useState(false);
+  useEffect(() => {
+    let socket: WebSocket,
+      retry: ReturnType<typeof setTimeout>,
+      closed = false;
+    const connect = () => {
+      socket = new WebSocket(
+        `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/ws?role=${panel ? 'panel' : 'overlay'}`,
+      );
+      socket.onopen = () => setConnected(true);
+      socket.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'snapshot') setSnapshot(msg.data);
+        else onEvent?.(msg.data);
+      };
+      socket.onclose = () => {
+        setConnected(false);
+        if (!closed) retry = setTimeout(connect, 1500);
+      };
+    };
+    connect();
+    return () => {
+      closed = true;
+      clearTimeout(retry);
+      socket?.close();
+    };
+  }, [panel, onEvent]);
+  return { snapshot, connected };
+}

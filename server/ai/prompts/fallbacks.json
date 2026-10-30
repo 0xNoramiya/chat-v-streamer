@@ -1,1 +1,57 @@
-{"opening":["All rise. The Court of Chat is now in session.","The Honorable Judge Docket presiding. Let the record show: we have receipts.","Court is in session. Confidence will be cross-examined."],"exhibit":["Exhibit A. The confidence has been entered into evidence.","The record remembers what the defendant would rather forget.","A receipt has arrived. It appears to be itemized."],"defense":["Defendant, you have 30 seconds. Choose your excuses carefully.","The floor is yours for 30 seconds. The transcript is listening.","You may now explain yourself. Thirty seconds on the clock."],"rebuttal":["An impressive defense. Unfortunately, the record remains undefeated.","The defense has supplied more words than explanations.","Let the record show that confidence is not an alibi."],"guilty":["The jury has spoken. Guilty. The receipts rest their case.","Guilty. The court recommends thinking before guaranteeing.","By the will of chat: guilty. Bring forth the sentence."],"not_guilty":["Not guilty. The benefit of the doubt has excellent legal representation.","The jury acquits. Confidence survives another day.","Not guilty. The prosecution may return to collecting receipts."],"mistrial":["Mistrial. This jury has left the courtroom on read.","A hung jury. The court will try again another day.","Mistrial declared. The gavel takes no side."],"dismissed":["The prosecution has nothing. Case dismissed.","No admissible receipts. The court dismisses this case.","The evidence drawer is empty. Case dismissed."],"rejected":["Outside this court's jurisdiction. Filing dismissed.","This court hears on-stream receipts only. Filing dismissed.","The clerk declines this filing. The gavel has boundaries."],"order":["Order in the court!","The gavel requests your indoor voices.","Order. This is a courtroom, with standards. Allegedly."],"sentence":["Let the punishment fit the overconfidence.","The court orders a modest adjustment to the defendant's dignity.","The sentence is binding. The lesson is optional."]}
+{
+  "opening": [
+    "All rise. The Court of Chat is now in session.",
+    "The Honorable Judge Docket presiding. Let the record show: we have receipts.",
+    "Court is in session. Confidence will be cross-examined."
+  ],
+  "exhibit": [
+    "The confidence has been entered into evidence.",
+    "The record remembers what the defendant would rather forget.",
+    "A receipt has arrived. It appears to be itemized."
+  ],
+  "defense": [
+    "Defendant, you have 30 seconds. Choose your excuses carefully.",
+    "The floor is yours for 30 seconds. The transcript is listening.",
+    "You may now explain yourself. Thirty seconds on the clock."
+  ],
+  "rebuttal": [
+    "An impressive defense. Unfortunately, the record remains undefeated.",
+    "The defense has supplied more words than explanations.",
+    "Let the record show that confidence is not an alibi."
+  ],
+  "guilty": [
+    "The jury has spoken. Guilty. The receipts rest their case.",
+    "Guilty. The court recommends thinking before guaranteeing.",
+    "By the will of chat: guilty. Bring forth the sentence."
+  ],
+  "not_guilty": [
+    "Not guilty. The benefit of the doubt has excellent legal representation.",
+    "The jury acquits. Confidence survives another day.",
+    "Not guilty. The prosecution may return to collecting receipts."
+  ],
+  "mistrial": [
+    "Mistrial. This jury has left the courtroom on read.",
+    "A hung jury. The court will try again another day.",
+    "Mistrial declared. The gavel takes no side."
+  ],
+  "dismissed": [
+    "The prosecution has nothing. Case dismissed.",
+    "No admissible receipts. The court dismisses this case.",
+    "The evidence drawer is empty. Case dismissed."
+  ],
+  "rejected": [
+    "Outside this court's jurisdiction. Filing dismissed.",
+    "This court hears on-stream receipts only. Filing dismissed.",
+    "The clerk declines this filing. The gavel has boundaries."
+  ],
+  "order": [
+    "Order in the court!",
+    "The gavel requests your indoor voices.",
+    "Order. This is a courtroom, with standards. Allegedly."
+  ],
+  "sentence": [
+    "Let the punishment fit the overconfidence.",
+    "The court orders a modest adjustment to the defendant's dignity.",
+    "The sentence is binding. The lesson is optional."
+  ]
+}
