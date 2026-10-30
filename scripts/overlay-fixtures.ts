@@ -56,6 +56,90 @@ export async function verifyOverlayFixtures(browser: Browser, source: Snapshot) 
       text: long('The defense supplied another contradiction.'),
       added_in: 'rebuttal' as const,
     };
+    // Drive server time only. OBS is unattended: never click or scroll its page controls.
+    const advanceReceipt = async (shownAt: number, label: string) => {
+      const pages = await page
+        .locator('.quote-scroll')
+        .evaluate((e) => Math.ceil(e.scrollHeight / e.clientHeight));
+      const observed: number[] = [];
+      for (let index = 0; index < pages; index++) {
+        state.court.now =
+          shownAt + (state.court.trial!.deadline - shownAt) * ((index + 0.5) / pages);
+        state.caption!.id = `${label}-page-${index}`;
+        broadcast();
+        await page.waitForFunction(
+          (id) => document.querySelector('.caption')?.getAttribute('data-line-id') === id,
+          state.caption!.id,
+        );
+        await page.evaluate(
+          () =>
+            new Promise<void>((resolve) =>
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+            ),
+        );
+        observed.push(
+          await page
+            .locator('.quote-scroll')
+            .evaluate((e) =>
+              e.scrollTop + e.clientHeight >= e.scrollHeight - 2
+                ? Math.ceil(e.scrollHeight / e.clientHeight)
+                : Math.floor(e.scrollTop / e.clientHeight) + 1,
+            ),
+        );
+      }
+      return { expected: Array.from({ length: pages }, (_, i) => i + 1), observed };
+    };
+    const unattended = [];
+    for (const reducedMotion of ['no-preference', 'reduce'] as const) {
+      await page.emulateMedia({ reducedMotion });
+      for (const phase of ['EXHIBITS', 'REBUTTAL'] as const) {
+        const now = Date.now();
+        state = structuredClone(source);
+        state.court.now = now;
+        state.court.trial = {
+          ...structuredClone(original),
+          phase,
+          phaseStartedAt: now,
+          deadline: now + (phase === 'EXHIBITS' ? 8000 : 10000),
+          exhibitIndex: 2,
+          exhibits: receipts,
+        };
+        state.caption = {
+          type: 'caption',
+          id: `unattended-${reducedMotion}-${phase}`,
+          scope: speechScope(state.court.trial),
+          speaker: 'Judge Docket',
+          text: 'The stored record is before the court.',
+          sentAt: now,
+          expiresAt: state.court.trial.deadline,
+        };
+        broadcast();
+        await page.waitForFunction(
+          (id) => document.querySelector('.caption')?.getAttribute('data-line-id') === id,
+          state.caption.id,
+        );
+        if (phase === 'REBUTTAL') {
+          state.court.now = now + 4000;
+          state.court.trial.exhibits = [...receipts, rebuttal];
+          broadcast();
+          await page.waitForFunction(
+            (text) => document.querySelector('.quote-verbatim')?.textContent === text,
+            rebuttal.text,
+          );
+        }
+        unattended.push({
+          reducedMotion,
+          phase,
+          ...(await advanceReceipt(state.court.now, `unattended-${reducedMotion}-${phase}`)),
+        });
+      }
+    }
+    for (const result of unattended)
+      assert.deepEqual(
+        result.observed,
+        result.expected,
+        `Unattended receipt: ${JSON.stringify(unattended)}`,
+      );
     const variants: [string, Phase, 'guilty' | 'not_guilty' | 'mistrial'][] = phases.map(
       (phase) => [phase, phase, 'guilty'],
     );
@@ -159,19 +243,8 @@ export async function verifyOverlayFixtures(browser: Browser, source: Snapshot) 
           expected,
         );
         assert.equal(await page.locator('.quote-verbatim').textContent(), expected);
-        await page.getByRole('button', { name: 'Next quote page' }).waitFor();
-        for (let i = 0; i < 30; i++) {
-          const before = await page.locator('.quote-scroll').evaluate((e) => ({
-            top: e.scrollTop,
-            bottom: e.scrollTop + e.clientHeight >= e.scrollHeight - 2,
-          }));
-          if (before.bottom) break;
-          await page.getByRole('button', { name: 'Next quote page' }).click();
-          await page.waitForFunction(
-            (top) => (document.querySelector('.quote-scroll')?.scrollTop ?? 0) > top,
-            before.top,
-          );
-        }
+        const progression = await advanceReceipt(now, label);
+        assert.deepEqual(progression.observed, progression.expected, `${label}: unattended paging`);
         assert.ok(
           await page
             .locator('.quote-scroll')
@@ -253,6 +326,7 @@ export async function verifyOverlayFixtures(browser: Browser, source: Snapshot) 
       phases: variants.length,
       cameraLayouts: 4,
       fullQuotePages: true,
+      unattendedReceipts: unattended,
       allCameraPixelsTransparent: true,
     };
   } finally {

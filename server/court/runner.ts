@@ -1,4 +1,5 @@
 import { CaptureReadiness } from '../adapters/transcript/readiness.js';
+import { ComedyDesk } from '../comedy/desk.js';
 import { deadline } from '../ai/deadline.js';
 import fallback from '../ai/prompts/fallbacks.json';
 import type { Store } from '../db.js';
@@ -59,6 +60,7 @@ export class CourtRunner {
   readonly sentencer: Sentencer;
   readonly speech: SpeechCache;
   readonly capture: CaptureReadiness;
+  readonly comedy: ComedyDesk;
   private caption?: Extract<CourtEvent, { type: 'caption' }>;
   private speechSequence = 0;
   private closed = false;
@@ -84,6 +86,19 @@ export class CourtRunner {
     this.sentencer = new Sentencer(store, twitch, this.log);
     this.speech = new SpeechCache(ai, clock);
     this.capture = new CaptureReadiness(!!ai.transcriptionConfigured, () => this.clock.now());
+    const comedy = store.get<{ value_json: string }>(
+      "SELECT value_json FROM settings WHERE key='comedy'",
+    );
+    this.comedy = new ComedyDesk(
+      comedy ? JSON.parse(comedy.value_json) : undefined,
+      (value) =>
+        store.run(
+          "INSERT OR REPLACE INTO settings(key,value_json) VALUES('comedy',?)",
+          JSON.stringify(value),
+        ),
+      (event) => this.onEvent(event),
+      () => this.onChange(),
+    );
     twitch.onStreamInfo = (info) => this.adoptBroadcast(info);
     twitch.onMessage = (u, text) => {
       this.track(this.chat(u, text));
@@ -164,6 +179,7 @@ export class CourtRunner {
           },
     );
     return {
+      comedy: this.comedy.snapshot(this.clock.now()),
       caption:
         this.caption &&
         this.caption.scope === speechScope(safeState.trial) &&
@@ -281,6 +297,7 @@ export class CourtRunner {
       (event.type === 'MISTRIAL' ||
         (event.type === 'TICK' && event.now - previous.startedAt >= 180000))
     ) {
+      this.comedy.clear(true);
       this.store.updateCase(previous.caseId, {
         status: 'mistrial',
         verdict: 'mistrial',
@@ -294,6 +311,7 @@ export class CourtRunner {
         verdictScript: fallbackVerdict('mistrial', []),
       });
     }
+    if (t?.verdict === 'mistrial' && previous?.verdict !== 'mistrial') this.comedy.clear(true);
     if (t) {
       this.store.saveExhibits(t.caseId, t.exhibits);
       if (event.type === 'VOTE' && t.phase === 'JURY' && event.now < t.deadline)
@@ -554,6 +572,7 @@ export class CourtRunner {
     this.onChange();
     const safe = this.ai.moderate ? await this.ai.moderate(charge) : localSafe(charge);
     this.store.updateCase(id, { raw_flagged: +!safe });
+    if (this.getCase(id).status !== 'filing') return id;
     if (skipCosign) {
       this.store.updateCase(id, { status: 'screening' });
       await this.screen(id);
@@ -639,17 +658,20 @@ export class CourtRunner {
   }
   async screen(id: number) {
     const c = this.getCase(id);
+    if (c.status !== 'screening') return;
     this.store.updateCase(id, {
       raw_flagged: +!(this.ai.moderate
         ? await this.ai.moderate(c.raw_charge!)
         : localSafe(c.raw_charge!)),
     });
+    if (this.getCase(id).status !== 'screening') return;
     const result = await this.ai.clerk(
       c.raw_charge!,
       this.cases()
         .filter((x) => x.id !== id && openStatuses.includes(x.status))
         .map((x) => x.short_title),
     );
+    if (this.getCase(id).status !== 'screening') return;
     this.store.updateCase(id, {
       formal_charge: result.formal_charge,
       short_title: result.short_title,
@@ -725,7 +747,11 @@ export class CourtRunner {
   }
   approve(id: number, approve: boolean) {
     const c = this.cases().find((c) => c.case_no === id);
-    if (!c || !['pending_approval', 'queued'].includes(c.status)) return;
+    const eligible = approve
+      ? ['pending_approval', 'queued']
+      : ['filing', 'screening', 'pending_approval', 'queued'];
+    if (!c || !eligible.includes(c.status)) return;
+    if (!approve) this.prepared.delete(c.id);
     this.store.updateCase(c.id, {
       status: approve ? 'queued' : 'rejected',
       reject_reason: approve ? null : 'streamer_veto',

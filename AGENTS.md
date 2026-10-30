@@ -39,5 +39,13 @@ Complete M1–M6 in order, append decisions/validation/Codex usage to BUILD_LOG.
 - SQLite schema v2 persists broadcast identity on evidence. Eligibility is checked again at preparation, trial start, rebuttal insertion and snapshot publication. Never bring legacy/unverified or other-broadcast receipts into court; precedents remain independent history.
 - Sentence payloads persist execution mode and channel. Never mark an actual restore complete because a rehearsal ran. Unknown legacy jobs stay pending unless the recorded convicted title is verified live; do not guess their provenance.
 - Captions and speech are separate events with line IDs, phase/exhibit scope and absolute expiration. Use `server/ai/speech.ts` for bounded preparation/cache; an obsolete or over-budget clip cannot play. The clock never waits for it.
-- `browser:check` includes all-phase long-text fixtures and full camera-interior PNG alpha scans. Keep the receipts, camera, prompts and caption zones disjoint. Long quotes must remain accessible verbatim through explicit page controls.
+- `browser:check` includes all-phase long-text fixtures and full camera-interior PNG alpha scans. Keep the receipts, camera, prompts and caption zones disjoint. Long quotes remain verbatim and page automatically within their remaining window, including rebuttal and reduced motion. Verify unattended behavior without overlay clicks.
 - Default trial pacing is 94–110 seconds. Keep defense at 30 seconds, jury at 20, and the absolute cap at 180 seconds.
+
+## Comedy effects
+
+- `web/public/comedy/manifest.json` is the validated pack definition; production transparent PNGs, provenance and art direction live beside it. One generic overlay renderer uses animation presets. New local assets should reuse those presets.
+- `server/comedy/desk.ts` owns a separate state domain. Never use comedy to change court state, jury votes, approval, sentencing or DRY_RUN. The runtime settings table stores attachments, placement and sound separately from court settings.
+- Transients exist only as unique timed events, never reconnect snapshots or persisted queues. Clear epochs invalidate late events; expired events are discarded. One large gag/two total transients maximum. Mistrials clear transients; Clear all also removes props.
+- Actual alpha is required. Generated RGB checkerboards must be removed and verified before shipping. `browser:check` uses real panel controls for every effect, reconnect/removal and cleanup; camera pixels must return to alpha zero with no effects DOM layer.
+- Veto is allowed throughout pretrial. Guard every asynchronous moderation/clerk/script boundary against a changed status. Approval remains gated behind successful screening.

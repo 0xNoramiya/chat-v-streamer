@@ -1,0 +1,114 @@
+{
+  "version": 1,
+  "name": "Docket's Vaudeville Desk",
+  "effects": [
+    {
+      "id": "poof",
+      "label": "POOF",
+      "asset": "/comedy/poof.png",
+      "kind": "transient",
+      "durationMs": 1300,
+      "animation": "puff",
+      "sound": "poof",
+      "soundAtMs": 180,
+      "cooldownMs": 2500,
+      "large": true,
+      "widthRatio": 0.68,
+      "placement": {
+        "x": 0.5,
+        "y": 0.48,
+        "scale": 1
+      }
+    },
+    {
+      "id": "bonk",
+      "label": "BONK",
+      "asset": "/comedy/bonk.png",
+      "kind": "transient",
+      "durationMs": 1600,
+      "animation": "swing",
+      "sound": "bonk",
+      "soundAtMs": 400,
+      "cooldownMs": 3000,
+      "large": true,
+      "widthRatio": 0.54,
+      "placement": {
+        "x": 0.72,
+        "y": 0.4,
+        "scale": 1
+      }
+    },
+    {
+      "id": "seeing_stars",
+      "label": "SEEING STARS",
+      "asset": "/comedy/seeing-stars.png",
+      "kind": "transient",
+      "durationMs": 4500,
+      "animation": "orbit",
+      "sound": "stars",
+      "soundAtMs": 160,
+      "cooldownMs": 5000,
+      "large": false,
+      "widthRatio": 0.62,
+      "placement": {
+        "x": 0.5,
+        "y": 0.26,
+        "scale": 1
+      }
+    },
+    {
+      "id": "silly_hat",
+      "label": "SILLY HAT",
+      "asset": "/comedy/silly-hat.png",
+      "kind": "prop",
+      "durationMs": 0,
+      "animation": "settle",
+      "sound": "hat",
+      "soundAtMs": 250,
+      "cooldownMs": 1000,
+      "large": false,
+      "widthRatio": 0.4,
+      "placement": {
+        "x": 0.5,
+        "y": 0.33,
+        "scale": 1
+      }
+    },
+    {
+      "id": "sad_cloud",
+      "label": "SAD LITTLE CLOUD",
+      "asset": "/comedy/sad-little-cloud.png",
+      "kind": "prop",
+      "durationMs": 0,
+      "animation": "drizzle",
+      "sound": "cloud",
+      "soundAtMs": 200,
+      "cooldownMs": 1000,
+      "large": false,
+      "widthRatio": 0.28,
+      "placement": {
+        "x": 0.83,
+        "y": 0.25,
+        "scale": 1
+      }
+    },
+    {
+      "id": "case_closed",
+      "label": "CASE CLOSED",
+      "asset": "/comedy/case-closed.png",
+      "kind": "transient",
+      "durationMs": 1700,
+      "animation": "stamp",
+      "sound": "stamp",
+      "soundAtMs": 360,
+      "cooldownMs": 3000,
+      "large": true,
+      "widthRatio": 0.65,
+      "placement": {
+        "x": 0.5,
+        "y": 0.65,
+        "scale": 1
+      }
+    }
+  ]
+}

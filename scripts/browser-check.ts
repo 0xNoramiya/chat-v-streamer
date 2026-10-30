@@ -1,4 +1,5 @@
 import { verifyOverlayFixtures } from './overlay-fixtures.js';
+import { verifyComedy } from './comedy-check.js';
 import { chromium } from '@playwright/test';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, symlink, rm } from 'node:fs/promises';
@@ -151,11 +152,23 @@ try {
     true,
   );
   assert.deepEqual(errors, []);
+  const comedyChecks = await verifyComedy(panel, overlay, get);
+  await post('chat', { user: 'viewer8', text: '!sue parrying is his specialty' });
+  const filing = panel
+    .locator('.case-row')
+    .filter({ hasText: 'Raw filing: parrying is his specialty' });
+  await filing.waitFor();
+  assert.ok(await filing.getByRole('button', { name: 'Approve', exact: true }).isDisabled());
+  await filing.getByRole('button', { name: 'Veto', exact: true }).click();
+  await filing.waitFor({ state: 'detached' });
+  assert.equal((await get()).cases[0].reject_reason, 'streamer_veto');
+  assert.deepEqual(errors, []);
   const phaseChecks = await verifyOverlayFixtures(browser, demoSnapshot);
   console.log(
     JSON.stringify({
       ok: true,
       phaseChecks,
+      comedyChecks,
       checks: [
         'panel route',
         'overlay route',
@@ -166,6 +179,7 @@ try {
         'records',
         'settings validation',
         'mistrial button',
+        'pretrial veto and approval gate',
         'mobile layout',
       ],
       artifacts: resolve('artifacts'),

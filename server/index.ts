@@ -87,6 +87,10 @@ app.post('/api/chat', async (req, res) => {
   res.json({ ok: true });
 });
 app.post('/api/demo', async (_req, res) => res.json({ id: await runner.demo() }));
+app.post('/api/comedy', (req, res) => {
+  runner.comedy.command(req.body, Date.now());
+  res.json({ ok: true });
+});
 app.post('/api/action', async (req, res) => {
   const action = z
     .object({

@@ -1,0 +1,64 @@
+{
+  "provider": "Higgsfield",
+  "model": "gpt_image_2",
+  "job_id": "3f7fe8d2-f377-42d0-a9dd-ff6add2fa6f6",
+  "created_at": "2026-10-30T18:53:40.859895Z",
+  "reference": "Original web/src/shared/Owl.tsx, rasterized locally",
+  "processing": "Cropped the generated 3x2 atlas into six props. The provider returned an RGB painted checkerboard despite background=transparent. Removed the neutral checkerboard with a local chroma matte, unpremultiplied edge colors, cropped transparent bounds, resized to at most 900px and padded by 12 transparent pixels. No temporary or substitute artwork is used.",
+  "files": [
+    {
+      "file": "poof.png",
+      "source_crop": [0, 0, 1168, 1100],
+      "size": [924, 907],
+      "transparent_pixels": 375925,
+      "opaque_pixels": 426622,
+      "partial_alpha_pixels": 35521,
+      "sha256": "7a888e4723ef061429c1de180ccb90464bc23677ee26221f42459118cbdb6aaa"
+    },
+    {
+      "file": "bonk.png",
+      "source_crop": [1168, 0, 2300, 1100],
+      "size": [924, 915],
+      "transparent_pixels": 512888,
+      "opaque_pixels": 319232,
+      "partial_alpha_pixels": 13340,
+      "sha256": "c3ec13fc50cf3c92760267fee55e5b9f8a82691b2a5b066696894abaa416f144"
+    },
+    {
+      "file": "seeing-stars.png",
+      "source_crop": [2300, 0, 3504, 1100],
+      "size": [924, 494],
+      "transparent_pixels": 371607,
+      "opaque_pixels": 67330,
+      "partial_alpha_pixels": 17519,
+      "sha256": "f2d3725ef9a60a6c82eb9a0de734bf813f395198d2ffbf94d36841b4d85bfc59"
+    },
+    {
+      "file": "silly-hat.png",
+      "source_crop": [0, 1100, 1168, 2336],
+      "size": [915, 924],
+      "transparent_pixels": 439506,
+      "opaque_pixels": 390947,
+      "partial_alpha_pixels": 15007,
+      "sha256": "632cf36ead4469ae9be5f324164489793b0ebcdc22fff95442ae0833481d96bd"
+    },
+    {
+      "file": "sad-little-cloud.png",
+      "source_crop": [1168, 1200, 2150, 2336],
+      "size": [709, 747],
+      "transparent_pixels": 286588,
+      "opaque_pixels": 240840,
+      "partial_alpha_pixels": 2195,
+      "sha256": "2f29274e10593d3b1eb88777dd862ae58690c0ce66caf8fc54756349c4467be2"
+    },
+    {
+      "file": "case-closed.png",
+      "source_crop": [2150, 1200, 3504, 2336],
+      "size": [924, 587],
+      "transparent_pixels": 171438,
+      "opaque_pixels": 330664,
+      "partial_alpha_pixels": 40286,
+      "sha256": "e6d50f17a3c38c0124ccecfc13ab175e978011a659ed050f77ab16c9ee201ea9"
+    }
+  ]
+}

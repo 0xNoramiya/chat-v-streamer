@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { SettingsEditor } from './SettingsEditor';
+import { ComedyDesk } from './ComedyDesk';
 import { MicCapture } from './mic';
 import { api, useCourt } from '../shared/client';
 import { Owl } from '../shared/Owl';
@@ -220,128 +221,136 @@ export function Panel() {
               </button>
             </section>
             <div className="court-columns">
-              <section className="paper-card live-trial">
-                <div className="card-heading">
-                  <span className="section-tag">NOW IN SESSION</span>
-                  <span className="live-dot">{t ? '● LIVE' : '○ STANDBY'}</span>
-                </div>
-                {t ? (
-                  <>
-                    <h2>{t.caseName}</h2>
-                    <p>{t.formalCharge}</p>
-                    <div className="phase-display">
-                      <strong>{t.phase.replaceAll('_', ' ')}</strong>
-                      <span>{Math.max(0, Math.ceil((t.deadline - s.court.now) / 1000))}s</span>
-                    </div>
-                    <div className="mini-jury">
-                      <span>
-                        Guilty <b>{Object.values(t.votes).filter((v) => v === 'guilty').length}</b>
-                      </span>
-                      <span>
-                        Not guilty{' '}
-                        <b>{Object.values(t.votes).filter((v) => v === 'not_guilty').length}</b>
-                      </span>
-                    </div>
-                    <div className="button-row">
-                      <button onClick={() => action('SKIP')}>Skip phase →</button>
-                      <button
-                        disabled={!s.sentences.some((sentence) => sentence.case_id === t.caseId)}
-                        onClick={() => action('SERVED')}
-                      >
-                        Sentence served
-                      </button>
-                    </div>
-                    <div className="button-row">
-                      {t.exhibits.map((e, i) => (
-                        <button
-                          disabled={t.strikeUsed}
-                          key={e.segment_id}
-                          onClick={() => action('STRIKE', { index: i })}
-                        >
-                          Strike {String.fromCharCode(65 + i)}
-                          {e.struck ? ' ✓' : ''}
-                        </button>
-                      ))}
-                    </div>
-                    <button className="danger" onClick={() => action('MISTRIAL')}>
-                      Declare mistrial
-                    </button>
-                  </>
-                ) : (
-                  <div className="empty-court">
-                    <div className="gavel-symbol">⚖</div>
-                    <h2>All quiet in the courtroom.</h2>
-                    <p>File a case in chat, or run a demo to see the court in action.</p>
-                    <button
-                      className="primary"
-                      onClick={() => run(() => api('demo'), 'Demo trial started')}
-                    >
-                      Run full demo trial →
-                    </button>
-                    <small>Works offline. No accounts or microphone needed.</small>
+              <div className="court-case-column">
+                <section className="paper-card live-trial">
+                  <div className="card-heading">
+                    <span className="section-tag">NOW IN SESSION</span>
+                    <span className="live-dot">{t ? '● LIVE' : '○ STANDBY'}</span>
                   </div>
-                )}
-              </section>
-              <section className="paper-card docket-panel">
-                <div className="card-heading">
-                  <span className="section-tag">THE DOCKET</span>
-                  <span>
-                    {
-                      s.cases.filter((c) =>
-                        ['filing', 'screening', 'queued', 'pending_approval'].includes(c.status),
-                      ).length
-                    }{' '}
-                    open
-                  </span>
-                </div>
-                {s.cases
-                  .filter((c) =>
-                    ['filing', 'screening', 'queued', 'pending_approval'].includes(c.status),
-                  )
-                  .map((c) => (
-                    <article className="case-row" key={c.id}>
-                      <span className="case-status">
-                        #{String(c.case_no).padStart(3, '0')} · {c.status.replace('_', ' ')}
-                      </span>
-                      <h3>{c.name}</h3>
-                      <p className={c.raw_flagged ? 'raw-flagged' : ''}>
-                        Raw filing: {c.raw_charge}
-                      </p>
-                      <p>{c.formal_charge}</p>
-                      {c.status === 'filing' && (
-                        <>
-                          <progress value={c.cosigners.length} max={c.threshold} />
-                          <small>
-                            {c.cosigners.length}/{c.threshold} co-signers
-                          </small>
-                        </>
-                      )}
-                      <div className="button-row">
-                        <button onClick={() => action('APPROVE', { id: c.case_no })}>
-                          Approve
-                        </button>
-                        <button onClick={() => action('VETO', { id: c.case_no })}>Veto</button>
+                  {t ? (
+                    <>
+                      <h2>{t.caseName}</h2>
+                      <p>{t.formalCharge}</p>
+                      <div className="phase-display">
+                        <strong>{t.phase.replaceAll('_', ' ')}</strong>
+                        <span>{Math.max(0, Math.ceil((t.deadline - s.court.now) / 1000))}s</span>
                       </div>
-                    </article>
-                  ))}
-                {!s.cases.some((c) =>
-                  ['filing', 'screening', 'queued', 'pending_approval'].includes(c.status),
-                ) && (
-                  <div className="docket-empty">
-                    <span>THE DOCKET IS CLEAR</span>
-                    <p>
-                      Chat files a case with <code>!sue</code>.<br />
-                      Co-signers bring it to the bench.
-                    </p>
+                      <div className="mini-jury">
+                        <span>
+                          Guilty{' '}
+                          <b>{Object.values(t.votes).filter((v) => v === 'guilty').length}</b>
+                        </span>
+                        <span>
+                          Not guilty{' '}
+                          <b>{Object.values(t.votes).filter((v) => v === 'not_guilty').length}</b>
+                        </span>
+                      </div>
+                      <div className="button-row">
+                        <button onClick={() => action('SKIP')}>Skip phase →</button>
+                        <button
+                          disabled={!s.sentences.some((sentence) => sentence.case_id === t.caseId)}
+                          onClick={() => action('SERVED')}
+                        >
+                          Sentence served
+                        </button>
+                      </div>
+                      <div className="button-row">
+                        {t.exhibits.map((e, i) => (
+                          <button
+                            disabled={t.strikeUsed}
+                            key={e.segment_id}
+                            onClick={() => action('STRIKE', { index: i })}
+                          >
+                            Strike {String.fromCharCode(65 + i)}
+                            {e.struck ? ' ✓' : ''}
+                          </button>
+                        ))}
+                      </div>
+                      <button className="danger" onClick={() => action('MISTRIAL')}>
+                        Declare mistrial
+                      </button>
+                    </>
+                  ) : (
+                    <div className="empty-court">
+                      <div className="gavel-symbol">⚖</div>
+                      <h2>All quiet in the courtroom.</h2>
+                      <p>File a case in chat, or run a demo to see the court in action.</p>
+                      <button
+                        className="primary"
+                        onClick={() => run(() => api('demo'), 'Demo trial started')}
+                      >
+                        Run full demo trial →
+                      </button>
+                      <small>Works offline. No accounts or microphone needed.</small>
+                    </div>
+                  )}
+                </section>
+                <section className="paper-card docket-panel">
+                  <div className="card-heading">
+                    <span className="section-tag">THE DOCKET</span>
+                    <span>
+                      {
+                        s.cases.filter((c) =>
+                          ['filing', 'screening', 'queued', 'pending_approval'].includes(c.status),
+                        ).length
+                      }{' '}
+                      open
+                    </span>
                   </div>
-                )}
-                <footer>
-                  <b>House rule № 1</b>
-                  <p>
-                    Only on-stream claims with transcript receipts. The clerk screens every filing.
-                  </p>
-                </footer>
-              </section>
+                  {s.cases
+                    .filter((c) =>
+                      ['filing', 'screening', 'queued', 'pending_approval'].includes(c.status),
+                    )
+                    .map((c) => (
+                      <article className="case-row" key={c.id}>
+                        <span className="case-status">
+                          #{String(c.case_no).padStart(3, '0')} · {c.status.replace('_', ' ')}
+                        </span>
+                        <h3>{c.name}</h3>
+                        <p className={c.raw_flagged ? 'raw-flagged' : ''}>
+                          Raw filing: {c.raw_charge}
+                        </p>
+                        <p>{c.formal_charge}</p>
+                        {c.status === 'filing' && (
+                          <>
+                            <progress value={c.cosigners.length} max={c.threshold} />
+                            <small>
+                              {c.cosigners.length}/{c.threshold} co-signers
+                            </small>
+                          </>
+                        )}
+                        <div className="button-row">
+                          <button
+                            disabled={!['pending_approval', 'queued'].includes(c.status)}
+                            onClick={() => action('APPROVE', { id: c.case_no })}
+                          >
+                            Approve
+                          </button>
+                          <button onClick={() => action('VETO', { id: c.case_no })}>Veto</button>
+                        </div>
+                      </article>
+                    ))}
+                  {!s.cases.some((c) =>
+                    ['filing', 'screening', 'queued', 'pending_approval'].includes(c.status),
+                  ) && (
+                    <div className="docket-empty">
+                      <span>THE DOCKET IS CLEAR</span>
+                      <p>
+                        Chat files a case with <code>!sue</code>.<br />
+                        Co-signers bring it to the bench.
+                      </p>
+                    </div>
+                  )}
+                  <footer>
+                    <b>House rule № 1</b>
+                    <p>
+                      Only on-stream claims with transcript receipts. The clerk screens every
+                      filing.
+                    </p>
+                  </footer>
+                </section>
+              </div>
+              <ComedyDesk state={s.comedy} now={s.court.now} connected={connected} run={run} />
             </div>
             <section className="quick-demo">
               <div>

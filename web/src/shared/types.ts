@@ -1,3 +1,4 @@
+import type { ComedySnapshot, ComedyEvent } from './comedy';
 export const phases = [
   'CALL_TO_ORDER',
   'EXHIBITS',
@@ -166,6 +167,7 @@ export interface ActiveSentence {
   endsAt: number;
 }
 export interface Snapshot {
+  comedy: ComedySnapshot;
   caption?: CaptionEvent;
   sentences: ActiveSentence[];
   court: CourtState;
@@ -226,4 +228,8 @@ export interface SpeechEvent {
   expiresAt: number;
 }
 export type CourtEvent =
-  CaptionEvent | SpeechEvent | { type: 'sfx'; name: string } | { type: 'precedent'; text: string };
+  | CaptionEvent
+  | SpeechEvent
+  | ComedyEvent
+  | { type: 'sfx'; name: string }
+  | { type: 'precedent'; text: string };

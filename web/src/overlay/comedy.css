@@ -1,0 +1,186 @@
+.comedy-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 30;
+}
+.comedy-position {
+  position: absolute;
+  transform: translate(-50%, -50%);
+}
+.comedy-sprite {
+  display: block;
+  width: 100%;
+  height: auto;
+  transform-origin: 50% 60%;
+  animation-duration: var(--gag-duration);
+  animation-timing-function: linear;
+  animation-fill-mode: both;
+}
+.gag-puff {
+  animation-name: gag-puff;
+}
+.gag-swing {
+  animation-name: gag-swing;
+  transform-origin: 20% 85%;
+}
+.gag-orbit {
+  animation-name: gag-orbit;
+}
+.gag-settle {
+  animation-name: gag-settle;
+}
+.gag-drizzle {
+  animation-name: gag-drizzle;
+}
+.gag-stamp {
+  animation-name: gag-stamp;
+}
+@keyframes gag-puff {
+  0% {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+  10% {
+    opacity: 1;
+    transform: scale(0.3, 0.2) rotate(-8deg);
+  }
+  22% {
+    transform: scale(1.12) rotate(4deg);
+  }
+  38%,
+  58% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.35) translateY(-24px);
+  }
+}
+@keyframes gag-swing {
+  0% {
+    opacity: 0;
+    transform: translateY(-110px) rotate(-65deg);
+  }
+  10%,
+  18% {
+    opacity: 1;
+    transform: translateY(-65px) rotate(-75deg);
+  }
+  25% {
+    transform: rotate(12deg) scaleY(0.85);
+  }
+  30% {
+    transform: rotate(-8deg);
+  }
+  37%,
+  65% {
+    opacity: 1;
+    transform: rotate(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-160px) rotate(-35deg);
+  }
+}
+@keyframes gag-orbit {
+  0% {
+    opacity: 0;
+    transform: scale(0.65);
+  }
+  8% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  20% {
+    transform: translateX(-12px) rotate(-8deg);
+  }
+  40% {
+    transform: translateX(12px) rotate(8deg);
+  }
+  60% {
+    transform: translateX(-12px) rotate(-8deg);
+  }
+  80% {
+    opacity: 1;
+    transform: translateX(12px) rotate(8deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.85);
+  }
+}
+@keyframes gag-settle {
+  0% {
+    opacity: 0;
+    transform: translateY(-55px) rotate(-15deg);
+  }
+  25% {
+    opacity: 1;
+    transform: translateY(8px) scaleY(0.85);
+  }
+  55% {
+    transform: translateY(-6px) rotate(8deg);
+  }
+  80% {
+    transform: rotate(-3deg);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes gag-drizzle {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(0.85);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(5px) scale(1.04);
+  }
+  70% {
+    transform: translateY(-3px);
+  }
+  100% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes gag-stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.6) rotate(-15deg);
+  }
+  12% {
+    opacity: 1;
+    transform: scale(1.5) rotate(-15deg);
+  }
+  21% {
+    transform: scale(0.88) rotate(-6deg);
+  }
+  28% {
+    transform: scale(1.04) rotate(-6deg);
+  }
+  38%,
+  75% {
+    opacity: 1;
+    transform: rotate(-6deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(25px) rotate(-6deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .comedy-sprite {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

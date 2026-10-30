@@ -67,6 +67,7 @@ function Receipt({
   trial: Trial;
 }) {
   const scroll = useRef<HTMLQuoteElement>(null),
+    shownAt = useRef(now),
     [pages, setPages] = useState(1),
     [page, setPage] = useState(1),
     [manual, setManual] = useState(false);
@@ -82,16 +83,10 @@ function Receipt({
   }, [e.text]);
   useEffect(() => {
     const element = scroll.current;
-    if (
-      !element ||
-      manual ||
-      trial.phase !== 'EXHIBITS' ||
-      matchMedia('(prefers-reduced-motion: reduce)').matches
-    )
-      return;
+    if (!element || manual) return;
+    // Discrete page changes fit the actual remaining window, including late rebuttal receipts.
     const step = Math.floor(
-      (now - trial.phaseStartedAt) /
-        Math.max(2500, (trial.deadline - trial.phaseStartedAt) / pages),
+      (now - shownAt.current) / Math.max(1, (trial.deadline - shownAt.current) / pages),
     );
     element.scrollTop = Math.min(step, pages - 1) * element.clientHeight;
   }, [now, manual, pages, trial]);
@@ -150,7 +145,9 @@ function Receipt({
       </div>
       <footer className="receipt-pages">
         <span>
-          {pages > 1 ? `Full receipt · Page ${page} of ${pages}` : 'Full receipt · Verbatim'}
+          {pages > 1
+            ? `Full receipt · Page ${page} of ${pages} · ${manual ? 'Manual' : 'Auto'}`
+            : 'Full receipt · Verbatim'}
         </span>
         {pages > 1 && (
           <div>
