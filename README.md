@@ -188,6 +188,23 @@ Four boundaries do the work:
 - **Raw chat never reaches the overlay.** Snapshots carry no raw filings, no audit log, no full
   transcript. Evidence is bound to a verified broadcast ID.
 
+## Status
+
+Everything described here is implemented. What has been run against a live service, and what has
+not, is tracked deliberately — that distinction is part of the point.
+
+|                                                 |                                                                                                                                                                                                                               |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runs offline with no credentials                | **Verified.** 100 tests, `demo:check`, `browser:check` including per-pixel camera alpha                                                                                                                                       |
+| Twitch OAuth, EventSub, Helix                   | **Built**, against Twurple and the official references. Contract-tested with a fake transport, plus dry-run guards, protected-user checks and disk-backed title-restoration tests across real, dry-run and simulator restarts |
+| OBS WebSocket v5                                | **Built.** Exercised against a local v5 protocol fixture, including disconnect and restart recovery                                                                                                                           |
+| OpenAI roles, moderation, speech, transcription | **Built.** Exercised against a local HTTP protocol fixture with the real SDK                                                                                                                                                  |
+| Authenticated rehearsal on a live channel       | **Outstanding.** No live Twitch session, real OBS instance or physical microphone has run                                                                                                                                     |
+
+That last row is why `BUILD_LOG.md` has a column headed _"real service actually exercised"_ reading
+mostly **No**. Keeping it honest is what caught a dry-run rehearsal wrongly marking a real
+title-restoration obligation complete — a bug you only find if you admit what you have not yet run.
+
 ## Built with OpenAI Codex
 
 Codex wrote this, in one day, across ten milestones you can read in order — `M1` through `M10` in
@@ -195,9 +212,6 @@ Codex wrote this, in one day, across ten milestones you can read in order — `M
 authoring any API call, reproduced every bug and wrote the measurement down _before_ fixing it, and
 drove Chromium to scan **every pixel inside the camera cutout** for an alpha of zero rather than
 trusting a stylesheet.
-
-[`BUILD_LOG.md`](BUILD_LOG.md) carries a column headed _"real service actually exercised"_, mostly
-reading **No**, next to exactly what local fixture stood in and what was still required.
 
 ## Assets
 
