@@ -1,184 +1,200 @@
+<div align="center">
+
 # Chat v. Streamer
 
-A Twitch courtroom where chat sues the streamer. Judge Docket keeps order, D.A. Receipts presents verbatim transcript exhibits, and chat alone decides guilt. The streamer keeps a mistrial button, a single exhibit strike, approval controls and an approved penal code.
+**A Twitch courtroom where chat sues the streamer.**
+The evidence is your own words, transcribed live. Chat is the jury. The sentence is real.
 
-## Run the offline demo
+![Node 20+](https://img.shields.io/badge/node-20%2B-3c6e5d?style=flat-square)
+![TypeScript strict](https://img.shields.io/badge/typescript-strict-3c6e5d?style=flat-square)
+![100 tests](https://img.shields.io/badge/tests-100%20passing-3c6e5d?style=flat-square)
+![Local first](https://img.shields.io/badge/runs-offline-b38a50?style=flat-square)
 
-Use Node.js 20 or newer and npm. No Twitch, OBS, mic or API account is needed.
+![A trial in progress: Exhibit A quotes the streamer verbatim beside their camera](docs/images/exhibit.png)
+
+</div>
+
+---
+
+A viewer types `!sue`. Two more `!cosign`. A clerk decides whether the court has jurisdiction, and
+then D.A. Receipts builds a case **out of the streamer's own voice** — pulled from a live
+transcript of the stream. The streamer gets thirty seconds to explain themselves into their own
+microphone. Chat votes. A guilty verdict rewrites the stream title to `[CONVICTED] …` for fifteen
+minutes, then puts the original back.
+
+Judge Docket is an owl in a wig. He is not impressed with you.
+
+## Try it in a minute
+
+No Twitch account, no API key, no microphone.
 
 ```sh
 npm install
 npm run dev
 ```
 
-Open **http://localhost:5173/panel** and **http://localhost:5173/overlay**. Click **Run full demo trial**. The simulator files a case, adds co-signers, injects receipts and defense, casts five guilty and two not-guilty votes, applies a simulated title sentence and saves a precedent. Default trial timing is 94–110 seconds (one to three opening receipts), including a full 30-second defense and 20-second jury window; the panel’s **Skip phase** advances rehearsal. In **Settings**, choose **Use quick rehearsal timers**, then save for a short demo.
+Open **http://localhost:5173/panel** and click **Run full demo trial**.
 
-The offline clerk only admits the supported boss/first-try and parrying rehearsals; unknown or personal filings are conservatively rejected. With an OpenAI key, the real clerk supports the complete on-stream jurisdiction described below.
+The simulator files a case, adds co-signers, injects receipts and a defense, casts five guilty and
+two not-guilty votes, applies a simulated title sentence and saves a precedent. For the stable OBS
+URLs, `npm run build && npm start` and use port **8787**.
 
-For the stable OBS URLs, build and run the production server:
+## The one rule everything hangs off
 
-```sh
-npm run build
-npm start
+**The AI is never allowed to write a quote.**
+
+Every word the streamer says is transcribed into local SQLite with full-text search, one row per
+segment. When the prosecutor builds its case it returns **segment IDs, not text**. The server
+validates each ID against the candidates it was actually shown, then renders the stored row
+character for character.
+
+```mermaid
+flowchart LR
+  MIC["🎙 streamer's mic"] --> STT["transcription"]
+  STT --> DB[("SQLite + FTS5<br/>one row per segment")]
+  SUE["💬 chat: !sue"] --> CLERK["clerk screens<br/>jurisdiction"]
+  CLERK --> DA["D.A. Receipts"]
+  DB -. candidate IDs .-> DA
+  DA -- "returns IDs only" --> VAL{"ID in the<br/>candidate list?"}
+  VAL -- yes --> EX["exhibit renders the<br/>stored row verbatim"]
+  VAL -- no --> DROP["exhibit dropped"]
+  EX --> JURY["💬 chat votes"]
+  JURY --> V["verdict"]
 ```
 
-- Panel: **http://localhost:8787/panel**
-- OBS browser source: **http://localhost:8787/overlay**, width **1920**, height **1080**
-- OAuth callback: **http://localhost:8787/auth/callback**
+Invent an ID and the exhibit is dropped. Invent all of them and the case is dismissed rather than
+argued with fabricated evidence. The roast is always something you really said — which is what
+makes it funny, and what makes it safe to run unattended.
 
-The server binds to loopback. Keep it local. In development Vite proxies `/api`, `/ws`, `/auth`, `/tts` and `/frames` to port 8787; `PORT` changes also require updating the Vite proxy. Production serves `web/dist` and all integrations from the same server port. Runtime settings persist in SQLite and take precedence over environment defaults for OBS scene names.
+The jury is chat and only chat. One vote per account, last vote counts, ties acquit, zero votes is
+a mistrial. No model output can change a verdict.
 
-## Enable real AI and speech
+## A trial, end to end
 
-```sh
-cp .env.example .env
+<table>
+<tr>
+<td width="50%"><img src="docs/images/call-to-order.png" alt="Court is called to order and the charge is read"></td>
+<td width="50%"><img src="docs/images/defense.png" alt="The defense phase with thirty seconds on the clock"></td>
+</tr>
+<tr>
+<td><b>Call to order.</b> The clerk's formal charge goes up. Pacing is 94&ndash;110 seconds, with a hard 180-second ceiling enforced inside the reducer.</td>
+<td><b>The defense.</b> Thirty seconds, captured from the real microphone and transcribed as you speak. Chat can spam <code>!objection</code>; enough of them and the gavel comes down.</td>
+</tr>
+<tr>
+<td><img src="docs/images/jury.png" alt="Chat votes guilty and not guilty during the jury phase"></td>
+<td><img src="docs/images/verdict.png" alt="The GUILTY stamp lands across the overlay"></td>
+</tr>
+<tr>
+<td><b>The jury.</b> Twenty seconds. One vote per account, the last one counts. The AI learns the result only after chat has decided it.</td>
+<td><b>The verdict.</b> Announced immediately from a fixed line &mdash; it never waits for a model.</td>
+</tr>
+</table>
+
+<div align="center">
+
+![The sentence: wear a convicted stream title for fifteen minutes](docs/images/sentence.png)
+
+</div>
+
+**The sentence.** The title becomes the crime for fifteen minutes. The original was saved first and
+the restore job is on disk, so a crash still restores it.
+
+## Chat commands
+
+| Command                            | Who                      | Effect                                     |
+| ---------------------------------- | ------------------------ | ------------------------------------------ |
+| `!sue <charge>`                    | anyone                   | File a lawsuit                             |
+| `!cosign [N]`                      | anyone but the plaintiff | Push a filing to the bench                 |
+| `!guilty` · `!g`                   | anyone, during jury      | Vote guilty                                |
+| `!notguilty` · `!ng` · `!innocent` | anyone, during jury      | Vote not guilty                            |
+| `!objection`                       | anyone, during defense   | Fill the objection meter                   |
+| `!docket` · `!record`              | anyone                   | Case names and the conviction record       |
+| `!court on` · `!court off`         | broadcaster/mod          | Open or close filing                       |
+| `!approve N` · `!veto N`           | broadcaster/mod          | Control pending cases                      |
+| `!mistrial`                        | broadcaster/mod          | Abort, cancel sentences, restore the scene |
+| `!strike A\|B\|C`                  | broadcaster              | Strike one exhibit per trial               |
+
+## The streamer keeps control
+
+A mistrial button that works at any moment and restores your OBS scene. One exhibit strike per
+trial. Veto on any pending case, through the whole pretrial. A penal code where every punishment is
+a JSON entry that does nothing until you mark it `approved: true` — only the title sentence ships
+approved. `DRY_RUN` logs every outgoing Twitch action instead of performing it, and defaults on.
+
+<div align="center">
+
+![The streamer's panel with the docket and comedy desk](docs/images/panel.png)
+
+</div>
+
+## And a mallet
+
+<div align="center">
+
+<img src="docs/images/bonk.png" width="49%" alt="A cartoon mallet bonks the streamer on a calibrated contact point"> <img src="docs/images/stars.png" width="49%" alt="Stars circle the streamer's head after the bonk">
+
+</div>
+
+Six original props, placed against a head position **you** calibrate — there is no face tracking
+and nothing is guessed. The comedy desk lives in its own state domain: gags cannot touch votes,
+approval, sentencing or `DRY_RUN`.
+
+## Documentation
+
+|                                            |                                                                  |
+| ------------------------------------------ | ---------------------------------------------------------------- |
+| [docs/SETUP.md](docs/SETUP.md)             | Twitch, OBS, OpenAI, microphone — and troubleshooting            |
+| [docs/FEATURES.md](docs/FEATURES.md)       | Sentencing, records, jurisdiction, comedy desk, head calibration |
+| [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md) | Tests, browser checks, rehearsals, connected sign-off            |
+| [AGENTS.md](AGENTS.md)                     | Architecture and the rules this codebase holds itself to         |
+| [BUILD_LOG.md](BUILD_LOG.md)               | Every milestone, every decision, and what was _not_ proved       |
+
+## Architecture
+
+Node 20, strict TypeScript, no `any`. Express + `ws` + SQLite/FTS5 on the server; React and Vite
+for the panel and the transparent 1920×1080 OBS overlay. ~12,000 lines across 82 files.
+
+```
+server/court/machine.ts   pure reducer — (state, event, settings) → {state, effects}
+                          no I/O, no timers, injected clock, 180s ceiling lives here
+server/court/runner.ts    coordinates persistence and effects around the reducer
+server/ai/                Zod → strict JSON schemas, bounded deadlines, fail-closed
+                          moderation, candidate-ID validation
+server/adapters/          twitch · obs · transcript, each real + simulator
+server/comedy/desk.ts     separate state domain, cannot reach court state
+web/src/overlay/          receives sanitised snapshots only
+web/src/panel/            raw filings and audit log live here, never on stream
 ```
 
-Set `OPENAI_API_KEY` and restart. Leave `SIM_MODE=true` to rehearse with real AI and simulated Twitch/OBS. The same demo uses the Responses API and AI-generated MP3 speech. Audio is AI generated; disclose that to your audience. Google Fonts have system-font fallbacks.
+Four boundaries do the work:
 
-The configured defaults are `OPENAI_MODEL_FAST=gpt-5-mini`, `OPENAI_MODEL_SMART=gpt-5`, `OPENAI_TRANSCRIBE_MODEL=gpt-4o-transcribe` and `OPENAI_TTS_MODEL=gpt-4o-mini-tts`. Boot checks model availability and names the environment variable to change when a model is unavailable. Judge voice defaults to `onyx`, prosecutor to `ash`. Change the env voice/model values to ones your account supports. TTS instructions are omitted for legacy `tts-1` models.
+- **The reducer owns the clock.** Time is injected, so a complete eight-phase trial runs instantly
+  in a test, and **no AI call can extend a trial** — the worst a slow model does is miss its slot
+  and get a written line instead.
+- **Every AI call is schema- and deadline-bound.** Four roles, each a Zod schema compiled to a
+  strict JSON schema so validator and request come from one definition. 6s / 15s / 8s / 6s, one
+  retry inside budget. Moderation fails closed.
+- **Real and simulated adapters are explicit.** `SIM_MODE` and `DRY_RUN` both default true.
+- **Raw chat never reaches the overlay.** Snapshots carry no raw filings, no audit log, no full
+  transcript. Evidence is bound to a verified broadcast ID.
 
-Every role uses strict JSON-schema output with matching Zod validation. Total role deadlines are 6s clerk, 15s script, 8s rebuttal and 6s verdict; there is at most one retry within that budget. The runner further limits rebuttal generation to four seconds to reserve readable delivery time. Captions appear immediately after moderation, without waiting for TTS; generated audio plays only if it fits the remaining phase deadline. Fixed jury/verdict announcements are cached. The jury verdict is announced immediately while AI prepares sentence flavor and precedent. Moderation and speech requests are also bounded. Fallbacks keep the trial clock moving. Candidate transcript IDs, precedent IDs and sentence IDs are validated on the server. **Quotes are read from SQLite, never generated by the prosecutor.** No valid evidence means dismissal. A failed moderation service rejects unsafe/unknown filings or uses original canned dialogue rather than displaying unreviewed generated text.
+## Built with OpenAI Codex
 
-To transcribe, open **Transcript → Start mic** and allow access on localhost. Keep the panel open. It records standalone complete files every `CHUNK_MS` (default 6000), skips quiet chunks using RMS energy and uploads to the transcription endpoint. **Stop mic** flushes the final chunk. The panel reports recording heartbeats, unverified/failed transcription and unavailable capture separately; the overlay never equates a missing transcript with a silent defense. Heartbeats expire after ten seconds without a live panel. Start mic is disabled when transcription is not configured. Manual lines work offline. Defense capture uses each segment’s recording start timestamp, including chunks arriving after the defense window closes; rebuttal uses the transcript available at the deadline, while later chunks still join the saved defense and verdict input.
+Codex wrote this, in one day, across ten milestones you can read in order — `M1` through `M10` in
+`git log`. The habits are the interesting part: it read the installed type declarations before
+authoring any API call, reproduced every bug and wrote the measurement down _before_ fixing it, and
+drove Chromium to scan **every pixel inside the camera cutout** for an alpha of zero rather than
+trusting a stylesheet.
 
-## Twitch setup
+[`BUILD_LOG.md`](BUILD_LOG.md) carries a column headed _"real service actually exercised"_, mostly
+reading **No**, next to exactly what local fixture stood in and what was still required.
 
-1. Register an application in the [Twitch Developer Console](https://dev.twitch.tv/console/apps), category Chat Bot, with **http://localhost:8787/auth/callback** as the exact OAuth redirect URI.
-2. Put `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, `TWITCH_CHANNEL_LOGIN` and the same `TWITCH_REDIRECT_URI` in `.env`. Set `SIM_MODE=false`; keep `DRY_RUN=true` for the first live rehearsal. Restart.
-3. Open **Diagnostics → Connect broadcaster**. Log in as the channel owner and grant scopes. `TWITCH_CHANNEL_LOGIN`, if configured, must match that account.
-4. Optionally use **Connect bot** while logged in as a separate bot account. In Twitch chat run `/mod your_bot_login`. Without a bot, the broadcaster reads and sends chat. The bot has `user:read:chat`, `user:write:chat` and `user:bot`; broadcaster has chat access, `channel:bot`, broadcast/title management, clips and contempt permissions. Additional `moderation:read` and `channel:read:vips` scopes let the server verify protected accounts immediately before timeouts.
-5. Tokens are stored atomically in `data/tokens.json` with mode 0600 and refreshed with Twurple. Both accounts share the callback; single-use OAuth state identifies and binds the account flow.
-6. Inspect the connection lights and test buttons. `DRY_RUN` logs outgoing Twitch actions in Court activity. To execute actual approved actions, set **`DRY_RUN=false` in `.env` and restart**.
+## Assets
 
-Type in Twitch chat:
+All character artwork is original SVG; the owl wears an original judge's wig. The six comedy props
+were generated through Higgsfield GPT Image 2 using the original owl as a style reference, with
+per-file crop coordinates, alpha counts and SHA-256 hashes recorded in
+`web/public/comedy/provenance.json`. Gavel, sting, stamp and gasp are synthesised locally with
+WebAudio. No franchise art or audio is included anywhere.
 
-```text
-!sue he said first try guaranteed and died like six times
-!cosign 1
-!guilty
-!notguilty
-```
-
-Filing needs 5–300 characters, two co-signers by default, a 60-second co-sign window, a 120-second per-user filing cooldown, at most five open cases and a 120-second gap between trials. Thresholds scale with unique chatters in the last ten minutes and are adjustable in Settings. The plaintiff cannot co-sign their own filing. **Auto-approve off** requires the streamer/mod to approve the formal charge; preparation begins as soon as the clerk admits a case. Vetoed cases cannot be revived by late AI responses.
-
-| Command                          | Access                  | Effect                                                     |
-| -------------------------------- | ----------------------- | ---------------------------------------------------------- |
-| `!sue <charge>`                  | Anyone                  | File a lawsuit                                             |
-| `!cosign [N]`                    | Anyone except plaintiff | Co-sign; omit N only if one filing is open                 |
-| `!guilty`, `!g`                  | Anyone, during jury     | Vote guilty                                                |
-| `!notguilty`, `!ng`, `!innocent` | Anyone, during jury     | Vote not guilty                                            |
-| `!objection`                     | Anyone, during defense  | Unique-user objection meter; order call has a 20s cooldown |
-| `!docket`, `!record`             | Anyone                  | Formal case names and conviction record                    |
-| `!court on`, `!court off`        | Broadcaster/mod         | Open or close filing and automatic starts                  |
-| `!approve N`, `!veto N`          | Broadcaster/mod         | Control pending/queued cases                               |
-| `!mistrial`                      | Broadcaster/mod         | Abort immediately, cancel sentence jobs, restore scene     |
-| `!strike A\|B\|C`                | Broadcaster             | Strike one exhibit per trial                               |
-
-Last vote counts, ties acquit and zero votes cause mistrial. The AI cannot change the jury result. The optional native poll is supplementary: **chat commands remain the canonical vote** so anonymous poll votes cannot be counted twice. Enable polls or Channel Points in Settings, save and reconnect broadcaster to grant optional scopes. Twitch Affiliate/Partner access is required. For Channel Points, manually create a reward named exactly **File a lawsuit** with user input enabled in your Twitch dashboard. Redemptions skip co-signing but retain screening, filing limits and streamer approval. Optional-feature failures leave chat filing and voting available.
-
-## Sentencing and records
-
-Only penal entries with `approved: true` can run. `title_shame` is initially approved; manual punishments default to unapproved until the streamer edits the validated penal-code JSON. You may revoke any entry. The guilty share caps severity: below 60% → 1, 60–79% → 2, at least 80% → 3.
-
-A guilty title sentence saves the original title **before** changing it, schedules a 15-minute restore and persists the job. Multiple overlapping real convictions preserve the original pre-court title and extend the restoration deadline; earlier jobs remain pending until a real restoration succeeds. Each job records execution mode (live, dry-run or simulator) and channel identity. A rehearsal never supersedes a real job or supplies a later live sentence’s original title. Expired jobs are processed on boot, including after a crash. Jobs created in DRY_RUN cannot turn into real title mutations after a config change. Restoration of an actual job defers while DRY_RUN or the simulator is enabled, or another broadcaster is connected. Legacy jobs without reliable provenance are retained for audit; a legacy live obligation is bound and restored only when the current live title matches its recorded convicted title. The same check can recover an obligation incorrectly marked reverted by the previous implementation. Unverifiable legacy jobs remain visible as pending review rather than risking a live title write. The title diagnostic restores after 30 seconds.
-
-Manual sentences appear on the overlay with a countdown and remain in the panel/idle overlay after adjournment until **Sentence served** is clicked. Guilty verdicts can create live-only clips and markers. Errors are logged without stopping the trial. Contempt is enabled by default per the demo specification and can be disabled in Settings; it is an explicit runtime switch and never times out the broadcaster, mods or VIPs. If protected status cannot be verified, the timeout is skipped.
-
-Mistrial title cancellation is persisted immediately, including during an in-flight action. A failed restoration is retried after reconnect/restart without waiting for the original sentence deadline. Boot also restores reversible effects of interrupted trials; an earlier sentence that is still valid remains in force until its own deadline.
-
-Every concluded verdict, including a mistrial, saves a searchable precedent. Records shows convictions, case law and plaintiff wins/losses/contempt counts. Future AI scripts receive the five most relevant precedents and may cite a validated ID.
-
-## OBS setup
-
-1. In OBS Studio, enable **Tools → WebSocket Server Settings → Enable WebSocket server**, port 4455, with a password. This app uses protocol v5. Set `OBS_WS_URL` and `OBS_WS_PASSWORD` in `.env`; real OBS uses `SIM_MODE=false`.
-2. Create a scene called **Courtroom** (or change it in Settings). Add the gameplay/stream source or desired camera sources below a browser source.
-3. Add browser source URL **http://localhost:8787/overlay**, width **1920**, height **1080**. Enable browser-source audio in OBS and use **Control audio via OBS** if you want a separate mixer channel. Keep the source running rather than shutting it down when hidden. Load `/overlay?debug=1` to inspect layout bounds.
-4. Place the camera underneath the browser source at **x=1180, y=400, width=600, height=450**. The defendant window is transparent, including the courtroom background cutout. Camera rectangle fields are editable in Settings.
-5. The server remembers the active scene before a trial, switches to the Courtroom scene and restores on adjournment/mistrial. If OBS disconnects, restoration is deferred and persisted for reconnect/boot recovery.
-6. Set an `OBS_SCREENSHOT_SOURCE` (prefer the gameplay source, avoiding recursive browser captures), or leave blank for current program scene. Every 10 seconds by default the app stores a 640px JPEG, retains three hours and chooses the nearest within 20 seconds for each exhibit. Missing frames show **NO PHOTO ON FILE**.
-
-All character artwork is original SVG. The owl wears an original judge’s wig; no franchise art or audio is included. Gavel, sting, stamp and gasp sounds are synthesized locally with WebAudio. The overlay displays full moderated subtitles immediately, plays one matching clip at a time, drops obsolete speech on phase or exhibit changes, measures actual audio duration before playback and respects reduced-motion preferences. Receipts, camera, phase prompts and captions occupy separate regions. The last opening receipt stays selected for defense; a rebuttal receipt gets its own tab. Long transcripts remain verbatim in a scrollable card with visible page controls; no quote text is rewritten or silently truncated. Click **Enable audio** when previewing in a normal browser if autoplay is blocked.
-
-## Comedy desk
-
-On the **Court** panel, the Comedy desk sits beside trial controls. Click a preview to trigger **POOF**, **BONK**, **SEEING STARS** or **CASE CLOSED** immediately. **SILLY HAT** and **SAD LITTLE CLOUD** attach until removed. Pick a prop, set horizontal/vertical percentages and scale, then **Apply position**; coordinates follow the configured camera rectangle. **Remove prop** removes the selected attachment. **Clear all effects** removes everything immediately, even with court closed. Mute and volume apply only to comedy sounds. Normal browser previews may need **Enable audio** in the overlay; OBS must allow browser-source audio.
-
-Gags stay inside the camera area so receipts, captions and jury commands remain readable. Stars sit along its upper edge; props have transparent surroundings. Only one large gag and two transient gags in total can play at once; extra clicks are rejected, never queued. Mistrial clears all current gags and attachments, including a zero-vote jury, and cancels future sequence steps. No automatic comedy cues are enabled. Comedy has no effect on votes, case approval, sentences or DRY_RUN.
-
-The six production PNGs in `web/public/comedy/` were generated through authenticated **Higgsfield / GPT Image 2**, using the original owl as a style reference. The provider returned a painted checkerboard, which was removed locally; the shipped files have measured RGBA transparency. No stand-in assets are shipped. `provenance.json` records generation, cropping, alpha counts and SHA-256 hashes; `ART_DIRECTION.md` records the prompt. Original squeaks, boings, impacts and whistles are synthesized with WebAudio. No generated video or franchise media is used.
-
-Pretrial Veto works during filing, screening and preparation; late AI results cannot revive the case. Approval is disabled until screening succeeds. Long receipts page automatically across their remaining display time, including delayed rebuttal receipts and reduced-motion previews. Full text remains stored and unchanged; no OBS interaction is required.
-
-To add an asset, place a transparent PNG in that directory and add an entry to `manifest.json` with a unique ID, label, path, camera placement, duration, existing animation preset, optional sound and cooldown. The shared schema validates the manifest and HTTP commands. The server persists prop placement, attachments and sound settings in SQLite. One-shot events have unique IDs, epochs and server deadlines; they expire locally and are never included in reconnect snapshots, so explosions cannot replay after reconnect/restart. Reduced motion uses static cutouts with the same cleanup deadlines.
-
-## Head calibration and BONK timing
-
-Expand **Calibrate head** in the Comedy desk. Head effects require an explicitly saved calibration; the app does not guess a head position. Load a local photo/video or choose **Use camera preview** (video only). Match the framing used in OBS. Drag **Head crown** to the top of the hair, **Head width** to the right edge of the head, and **BONK contact** to the intended contact point. If markers overlap, choose **Active marker**; keyboard arrows also move the focused marker. Click **Save head calibration**. Preview files stay in the browser. **Stop preview camera** releases the camera, including a request that is still awaiting permission.
-
-The coordinates are percentages of the camera rectangle and survive reconnect/restart independently of court settings. Moving/resizing that rectangle moves/scales the props. The hat attaches by its brim, stars surround the upper head, and the mallet's contact surface reaches the selected point. Head props use neutral **50% / 50%** position offsets; scale remains adjustable. Old M8 center-based head offsets migrate to neutral values to avoid covering the face. Recalibrate if the person or source crop moves; there is no face tracking.
-
-If there is not enough space above the crown, the desk disables the affected trigger and explains the extra headroom required. Reframe/zoom out in OBS and recalibrate; the app does not turn a wearable hat into a tiny forehead accessory or crop it silently. Existing attachments pause visibly when framing becomes unsuitable. Effects remain inside the camera area, leaving receipts, captions and jury commands readable.
-
-**BONK → stars** performs anticipation and swing, contact at 600 ms with a separate 240 ms burst, then a short stunned beat before stars at 1,250 ms. BONK sound is released on the rendered impact frame rather than scheduled ahead of painting. Standalone BONK and SEEING STARS remain available. The original mallet was revised through Higgsfield into separate transparent mallet/burst layers; provenance and the revision prompt are in the pack directory. Clear all and mistrial cancel current effects, sound and future sequence steps. Reconnecting cannot restart or join an existing sequence. Reduced motion keeps the timed contact burst and cleanup without the swing movement.
-
-To reproduce the local moving-streamer rehearsal, install FFmpeg and Chromium, build, then run `npm run rehearsal:check -- /path/to/streamer.mp4`. With the supplied ignored fixture available, `npm run rehearsal:check` writes `artifacts/m9-rehearsal/after.mp4`, `before-after.mp4` (when the M8 recording is present), screenshots and a timing/alpha report. It uses an isolated database, real panel controls and captured WebAudio. The fixture-only zoom-out simulates OBS reframing; no ignored media is required by the application.
-
-## Jurisdiction and raw-text boundary
-
-The court hears only claims about what the streamer said/did on the current stream that voice transcripts can prove or disprove: gameplay claims, promises, contradictions, predictions, hypocrisy and taste. Personal life, appearance, identity, health, family, money, real-world allegations, third parties, sexual content, slurs, harassment and spam are rejected. Rejections never repeat raw filings. Raw charge text is stored for local audit and shown only in the streamer panel, blurred if moderation fails. Overlay snapshots omit raw filings, defense transcript, audit logs and full transcripts. Stored verbatim exhibits remain moderated receipts. Receipt eligibility is tied to the verified Twitch channel and broadcast ID, not to the last few app sessions. Restarting during the same broadcast retains eligible receipts; a new broadcast cannot retrieve or display old ones. Live filing/start verifies broadcast identity, and a broadcast change aborts an active trial. Transcript uploads and frames retain their request’s broadcast even if processing finishes later. Candidates include mic/manual/simulator provenance and broadcast context; historical precedents remain searchable separately. Legacy transcript rows without verifiable broadcast identity are kept for audit and excluded from courtroom evidence.
-
-## Development and verification
-
-```sh
-npm run typecheck
-npm test
-npm run demo:check
-npm run build
-npx playwright install chromium  # once, for the browser check
-npm run browser:check
-npm run format:check
-npm audit
-```
-
-`browser:check` starts an isolated simulator server with a temporary SQLite database, opens both routes in Chromium, runs the demo, verifies the title sentence and records, checks malformed settings and the mistrial button, and checks mobile layout. Its additional overlay fixtures cover every phase, three opening receipts plus a rebuttal, long permitted text, quote paging, four camera layouts and every PNG pixel in each configured camera interior. It writes screenshots into `artifacts/` without touching your local data. Rule tests cover deadlines, transitions, co-sign thresholds/cooldowns, parser aliases, ties/zero votes, invalid IDs, FTS, moderation, late transcription, title reverts and protected users, plus real/dry-run/simulator restarts, legacy obligations, broadcast scoping, delayed providers, stale speech and capture readiness. Complete operating fixtures cover guilty, acquittal, zero-vote mistrial and unavailable AI. OBS protocol fixtures cover restoration after disconnect/restart; these are local fixtures, not an authenticated OBS session. The official SDK request contract is tested with a fake transport. Authenticated Twitch/OBS/OpenAI behavior still needs a rehearsal with your own accounts and OBS instance.
-
-See [AGENTS.md](AGENTS.md) for architecture and continuation conventions, and [BUILD_LOG.md](BUILD_LOG.md) for per-milestone decisions and checks.
-
-Comedy browser checks use actual panel buttons for every generated asset, placement/removal, clear, mistrial and reconnect, and exercise WebAudio nodes and mute cancellation. They scan PNG alpha before use and after cleanup; screenshots are saved as `artifacts/comedy-*.png`. These local browser checks do not constitute authenticated OpenAI/Twitch/OBS rehearsal.
-
-## Troubleshooting
-
-| Symptom                                   | Check                                                                                                                                                   |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Port 8787 `/panel` returns 404            | Run `npm run build` before `npm start`; dev UI uses port 5173.                                                                                          |
-| OAuth redirect mismatch                   | Match `TWITCH_REDIRECT_URI` exactly in Twitch app settings. Both auth accounts use the same callback. Restart after env changes.                        |
-| Bot cannot read/send chat                 | Connect both accounts, mod the bot, verify chat scopes and EventSub status; reconnect to refresh grants.                                                |
-| Native poll/reward fails                  | Affiliate/Partner required. Enable before reauth. Use chat votes and ordinary `!sue` as fallback.                                                       |
-| Title does not change                     | Simulator logs only; DRY_RUN logs only. Check broadcaster connection and channel:manage:broadcast.                                                      |
-| Title did not restore while DRY_RUN is on | Actual jobs defer until you disable DRY_RUN. Keep `data/court.db` so recovery jobs survive restarts.                                                    |
-| OpenAI model unavailable                  | Change the exact env variable named in Court activity, verify account access and billing, restart.                                                      |
-| No speech                                 | Check TTS enabled, voice/model access, OBS/browser audio and autoplay. Captions work without audio.                                                     |
-| No mic transcript                         | Allow mic on localhost, keep panel open, check OPENAI_API_KEY and energy threshold (quiet chunks are skipped). Use a manual line to check the pipeline. |
-| No screenshot                             | Check OBS source/scene name, WebSocket password, timing within 20s and FRAME_INTERVAL_MS. Placeholder is expected in simulator.                         |
-| Court scene remains after interruption    | Reconnect OBS; persisted scene restoration retries. Confirm that the original scene still exists.                                                       |
-| SQLite install fails                      | Use a supported Node LTS; if no prebuilt better-sqlite3 binary is available, install Python and C/C++ build tools.                                      |
-| Nothing starts                            | Check court on, co-sign threshold, streamer approval, available evidence and between-trial cooldown.                                                    |
-
-Do not commit `.env` or `data/`. Back up the data directory if you want to keep court records and pending revert jobs. No secrets are written to application logs.
-
-## Connected rehearsal
-
-Keep `DRY_RUN=true` for this procedure. Never start a broadcast for the check. Secrets belong in your local `.env`, never chat, screenshots or reports.
-
-1. Run `npm run connected:readiness`. It reports configuration presence, the running app's connection status and OBS TCP availability; it does not validate saved tokens, refresh them, send chat or mutate settings. Reports go to ignored `artifacts/m10-connected/`. `/api/readiness` contains counts/status only: no prompts, chat text, account IDs, tokens or OBS password. Provider success, fallback and cache counters are separate. EventSub counters originate inside the real adapter; `/api/chat` and the simulator cannot increment them.
-2. Configure `OPENAI_API_KEY` locally, preserving the configured model names. Run `npm run build && npm run connected:check`. This starts one isolated SIM_MODE/DRY_RUN app and temporary database, with no Twitch authorization client. It exercises all four AI roles, moderation, speech and a known recorded-audio transcription through the app, then guilty/acquittal/mistrial trials. The generated streamer fixture is `artifacts/streamer-rehearsal/streamer.mp4`; FFmpeg and `espeak-ng` are rehearsal prerequisites. Recorded input is local synthesized speech, **not physical mic capture**. Trial speech comes from OpenAI in this mode. `trial.mp4`, separate `speech-only.webm` and `effects-only.webm`, and sanitized results go to `artifacts/m10-connected/real-openai/`. Both recorded audio tracks must contain non-silent samples. A missing key exits with code 2 and writes a blocked report; a fallback does not become proof of a successful provider call.
-3. `npm run connected:check -- --fixture` prepares the same workflow against a local HTTP protocol fixture and local synthesized speech. Its output is explicitly labeled **local fixture**, stored separately, and never counts as real OpenAI, transcription accuracy, Twitch or OBS evidence. It leaves your working database/tokens/calibration/restoration jobs intact.
-
-   A Codex OAuth proxy needs a separate capability check. The helper inspected for this build supports authenticated Responses text generation, but returns 404 for moderation, speech and transcription. A working Codex login does not supply a Platform API key or prove those endpoints work. Keep moderation fail-closed and report text-only results separately from the complete connected rehearsal.
-
-4. After real AI passes, stop the existing app before starting connected mode. Do not copy token files into another running app or launch parallel refresh clients. Configure your Twitch app credentials/channel and OBS endpoint locally; keep the existing single owner of `data/tokens.json`. Set `SIM_MODE=false`, retain `DRY_RUN=true`, then restart. Connect broadcaster and optionally a separate bot using `/auth/broadcaster` and `/auth/bot`. The redirect stays `http://localhost:8787/auth/callback`. Existing refresh counters report only refreshes actually observed; loaded tokens alone do not prove refresh behavior. Never delete the database to retry.
-5. In OBS, create a dedicated rehearsal scene with the browser source and camera arrangement described above. Select its name in Court settings; note the prior setting so you can restore it afterwards. Use the existing panel calibration/preview, keep receipts and commands visible, and verify transparent camera pixels, hat, BONK → stars, Clear all and Mistrial. Confirm scene entry and original-scene restoration, then disconnect/reconnect OBS and repeat. Scene counters represent acknowledged requests; visual review in actual OBS is still required.
-6. Run `npm run connected:observe -- http://127.0.0.1:8787 60` while participants send actual Twitch chat. This attaches read-only to the one running app and refuses SIM_MODE or DRY_RUN=false. Verify EventSub receipt, then `!sue`, `!cosign`, jury commands and authorized moderator controls where a live broadcast and participating accounts permit. Outgoing chat, title, timeout, clip/marker and poll mutations are logged dry runs. If Twitch is offline, an actual `!sue` must leave the docket unchanged and report that a verified live broadcast is required; a full connected trial remains untested. Simulator commands never prove Twitch identities or votes.
-
-Before live sign-off, separately verify account refresh, physical mic capture, the actual OBS browser-source audio mix and disconnect/restart recovery. Keep saved restoration jobs: dry-run rehearsal cannot fulfill a real title-restoration obligation. The rehearsal scripts never enable live Twitch actions. Record which rows are authenticated service tests and which are fixtures in `BUILD_LOG.md`.
+Audio generated at runtime is AI generated — disclose that to your audience.
