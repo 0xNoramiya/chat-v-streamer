@@ -27,11 +27,11 @@ export class CourtAI implements AIService {
   ) {
     if (config.OPENAI_API_KEY) {
       this.client = new AIClient(log);
-      this.tts = new TTS(this.client.sdk);
+      this.tts = new TTS(this.client.sdk, this.client.evidence);
 
       void this.client.checkModels();
     }
-    this.moderator = new Moderator(this.client?.sdk);
+    this.moderator = new Moderator(this.client?.sdk, this.client?.evidence);
   }
   async moderate(text: string) {
     return this.moderator.safe(text);

@@ -16,7 +16,10 @@
     "format": "prettier --write server web/src scripts tests *.ts *.md",
     "format:check": "prettier --check server web/src scripts tests *.ts *.md",
     "browser:check": "tsx scripts/browser-check.ts",
-    "rehearsal:check": "tsx scripts/rehearsal-check.ts"
+    "rehearsal:check": "tsx scripts/rehearsal-check.ts",
+    "connected:readiness": "tsx scripts/connected-readiness.ts",
+    "connected:check": "tsx scripts/connected-check.ts",
+    "connected:observe": "tsx scripts/connected-observe.ts"
   },
   "dependencies": {
     "@twurple/api": "^7.3.0",

@@ -63,6 +63,12 @@ it('uses real OBS v5 requests to switch, capture and restore against a protocol 
     expect(await obs.capture('Gameplay')).toMatch(/^data:image\/jpeg/);
     await obs.restore();
     expect(scenes).toEqual(['Courtroom', 'Gameplay']);
+    expect(obs.diagnostics()).toMatchObject({
+      connections: 1,
+      sceneEntries: 1,
+      sceneRestores: 1,
+      screenshots: 1,
+    });
     expect(requests).toContain('GetSourceScreenshot');
     expect(store.get("SELECT 1 FROM settings WHERE key='obs_restore_scene'")).toBeUndefined();
   } finally {

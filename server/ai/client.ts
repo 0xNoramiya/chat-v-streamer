@@ -3,9 +3,11 @@ import type { ZodType } from 'zod';
 import { readFileSync } from 'node:fs';
 import { config } from '../config.js';
 import { jsonSchemas, normalizeLengths } from './schemas.js';
+import { ProviderEvidence } from './evidence.js';
 export type Role = keyof typeof jsonSchemas;
 const style = readFileSync(new URL('./prompts/style.md', import.meta.url), 'utf8');
 export class AIClient {
+  readonly evidence = new ProviderEvidence();
   readonly sdk: OpenAI;
   status = 'OpenAI configured · unverified';
   constructor(
@@ -18,6 +20,7 @@ export class AIClient {
   async checkModels() {
     try {
       const list = await this.sdk.models.list({ timeout: 5000 });
+      this.evidence.record('models', 'success');
       this.status = 'OpenAI models listed · calls unverified';
       const ids = new Set(list.data.map((m) => m.id));
       for (const [env, id] of Object.entries({
@@ -31,7 +34,8 @@ export class AIClient {
             `WARNING: Model ${id} unavailable. Change ${env} in .env; canned fallback stays active.`,
           );
         }
-    } catch {
+    } catch (error) {
+      this.evidence.record('models', 'failure', error);
       this.status = 'OpenAI unavailable · fallback';
       this.log(
         'ai',
@@ -65,9 +69,11 @@ export class AIClient {
           { timeout, signal: AbortSignal.timeout(timeout) },
         );
         const parsed = schema.parse(normalizeLengths(JSON.parse(response.output_text)));
+        this.evidence.record(role, 'success');
         this.status = 'OpenAI responding';
         return parsed;
-      } catch {
+      } catch (error) {
+        this.evidence.record(role, 'failure', error);
         this.log(
           'ai',
           `${role} attempt ${attempt + 1} failed or timed out; using bounded retry/fallback.`,
@@ -75,6 +81,7 @@ export class AIClient {
       }
     }
     this.status = 'OpenAI fallback · last call failed';
+    this.evidence.record(role, 'fallback');
     return fallback;
   }
 }

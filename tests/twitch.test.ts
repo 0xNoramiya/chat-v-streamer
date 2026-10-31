@@ -18,6 +18,12 @@ it('real adapter DRY_RUN logs title mutation without credentials or Helix calls'
   );
   await adapter.setTitle('[CONVICTED] Dry run');
   expect(logs).toContain('DRY_RUN setTitle: [CONVICTED] Dry run');
+  expect(adapter.diagnostics()).toMatchObject({
+    dryRunActions: 1,
+    liveActionAttempts: 0,
+    eventsubMessages: 0,
+    stream: 'unverified',
+  });
   adapter.close();
 });
 it('restores overdue persisted title jobs exactly once after boot', async () => {

@@ -2,9 +2,13 @@ import { createHash } from 'node:crypto';
 import { mkdir, writeFile, access } from 'node:fs/promises';
 import type OpenAI from 'openai';
 import { config } from '../config.js';
+import type { ProviderEvidence } from './evidence.js';
 export class TTS {
   private pending = new Map<string, Promise<string | undefined>>();
-  constructor(private sdk: OpenAI) {}
+  constructor(
+    private sdk: OpenAI,
+    private evidence?: ProviderEvidence,
+  ) {}
   generate(text: string, speaker: string): Promise<string | undefined> {
     const voice = speaker === 'Judge Docket' ? config.TTS_VOICE_JUDGE : config.TTS_VOICE_DA;
     const hash = createHash('sha256')
@@ -20,6 +24,7 @@ export class TTS {
     const path = `data/tts/${hash}.mp3`;
     try {
       await access(path);
+      this.evidence?.record('speech', 'cached');
       return `/tts/${hash}.mp3`;
     } catch {
       /* Generate uncached speech. */
@@ -44,8 +49,10 @@ export class TTS {
       );
       await mkdir('data/tts', { recursive: true });
       await writeFile(path, Buffer.from(await response.arrayBuffer()));
+      this.evidence?.record('speech', 'success');
       return `/tts/${hash}.mp3`;
-    } catch {
+    } catch (error) {
+      this.evidence?.record('speech', 'failure', error);
       return undefined;
     }
   }

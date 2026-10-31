@@ -11,6 +11,7 @@ import { randomBytes } from 'node:crypto';
 import type { Express } from 'express';
 import { z } from 'zod';
 import { config } from '../../config.js';
+import { parseCommand } from '../../court/commands.js';
 import type { Settings, User } from '../../../web/src/shared/types.js';
 import type { TwitchAdapter, StreamInfo, TwitchExecution } from './types.js';
 const tokenSchema = z.object({
@@ -52,6 +53,22 @@ export class RealTwitch implements TwitchAdapter {
   private seen = new Set<string>();
   private closed = false;
   private retry?: ReturnType<typeof setTimeout>;
+  private evidence = {
+    refreshes: 0,
+    refreshFailures: 0,
+    eventsubMessages: 0,
+    observedCommands: { filings: 0, cosigns: 0, votes: 0, controls: 0 },
+    dryRunActions: 0,
+    liveActionAttempts: 0,
+    stream: 'unverified' as 'unverified' | 'live' | 'offline',
+  };
+  diagnostics() {
+    return {
+      broadcasterTokenLoaded: !!this.accounts.broadcaster,
+      botTokenLoaded: !!this.accounts.bot,
+      ...structuredClone(this.evidence),
+    };
+  }
   constructor(
     private log: (kind: string, text: string) => void,
     private settings: () => Settings,
@@ -63,11 +80,13 @@ export class RealTwitch implements TwitchAdapter {
     });
     this.api = new ApiClient({ authProvider: this.provider, logger: { minLevel: 'error' } });
     this.provider.onRefresh((userId, token) => {
+      this.evidence.refreshes++;
       for (const role of ['broadcaster', 'bot'] as const)
         if (this.accounts[role]?.userId === userId) this.accounts[role] = { userId, token };
       this.save();
     });
     this.provider.onRefreshFailure(() => {
+      this.evidence.refreshFailures++;
       this.status = 'auth expired';
       this.log(
         'twitch',
@@ -138,6 +157,13 @@ export class RealTwitch implements TwitchAdapter {
       if (this.seen.size > 3000) this.seen.clear();
       this.seen.add(e.messageId);
       if (e.chatterId === this.botId) return;
+      this.evidence.eventsubMessages++;
+      const command = parseCommand(e.messageText);
+      if (command?.type === 'sue') this.evidence.observedCommands.filings++;
+      if (command?.type === 'cosign') this.evidence.observedCommands.cosigns++;
+      if (command?.type === 'vote') this.evidence.observedCommands.votes++;
+      if (command && ['court', 'approve', 'veto', 'mistrial', 'strike'].includes(command.type))
+        this.evidence.observedCommands.controls++;
       this.onMessage?.(
         {
           id: e.chatterId,
@@ -265,9 +291,11 @@ export class RealTwitch implements TwitchAdapter {
   }
   private async action(name: string, fn: () => Promise<unknown>) {
     if (config.DRY_RUN) {
+      this.evidence.dryRunActions++;
       this.log('twitch', `DRY_RUN ${name}`);
       return;
     }
+    this.evidence.liveActionAttempts++;
     await fn();
     this.log('twitch', name);
   }
@@ -351,6 +379,7 @@ export class RealTwitch implements TwitchAdapter {
       displayName: channel?.displayName,
       startedAt: stream?.startDate.getTime() ?? null,
     };
+    this.evidence.stream = info.live ? 'live' : 'offline';
     this.onStreamInfo?.(info);
     return info;
   }

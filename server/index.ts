@@ -75,6 +75,41 @@ else
       ),
   );
 diagnostics(app, runner);
+app.get('/api/readiness', (_req, res) => {
+  const status = runner.snapshot().status;
+  res.json({
+    checkedAt: Date.now(),
+    modes: { sim: config.SIM_MODE, dryRun: config.DRY_RUN },
+    configurationPresent: {
+      openaiKey: !!config.OPENAI_API_KEY,
+      twitchClientId: !!config.TWITCH_CLIENT_ID,
+      twitchClientSecret: !!config.TWITCH_CLIENT_SECRET,
+      twitchChannel: !!config.TWITCH_CHANNEL_LOGIN,
+      obsPassword: !!config.OBS_WS_PASSWORD,
+    },
+    connections: {
+      ai: ai.status,
+      twitch: twitch.status,
+      eventsub: twitch.eventsubStatus,
+      obs: obs.status,
+    },
+    capture: status.capture?.state,
+    pendingRestorations: {
+      real: status.pendingRealRestores ?? 0,
+      unverified: status.pendingUnverifiedRestores ?? 0,
+    },
+    activeTrial: !!runner.state.trial,
+    openai: ai.client?.evidence.snapshot() ?? {},
+    openaiProvider: !ai.client
+      ? 'none'
+      : ai.client.sdk.baseURL === 'https://api.openai.com/v1'
+        ? 'official_openai'
+        : 'custom',
+    twitch: twitch instanceof RealTwitch ? twitch.diagnostics() : null,
+    obs: obs instanceof RealObs ? obs.diagnostics() : null,
+    docketCaseCount: runner.cases().length,
+  });
+});
 app.get('/api/state', (req, res) => res.json(runner.snapshot(req.query.role !== 'overlay')));
 app.post('/api/chat', async (req, res) => {
   const body = z
@@ -149,7 +184,9 @@ app.post('/api/transcribe', upload.single('audio'), async (req, res) => {
   let text: string;
   try {
     text = await transcribe(ai.client.sdk, req.file.buffer, req.file.mimetype);
-  } catch {
+    ai.client.evidence.record('transcription', 'success');
+  } catch (error) {
+    ai.client.evidence.record('transcription', 'failure', error);
     if (clientId) runner.capture.result(clientId, false);
     runner.onChange();
     return res.status(502).json({

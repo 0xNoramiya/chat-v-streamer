@@ -56,3 +56,10 @@ Complete M1–M6 in order, append decisions/validation/Codex usage to BUILD_LOG.
 - Asset dimensions, anchors, target, size basis and impact timing are manifest data. `web/src/shared/comedyGeometry.ts` is shared by panel/server/overlay. A hat attaches by its brim; never hide insufficient headroom by cropping or silently shrinking a head prop. Show reframing guidance instead.
 - Sequence scheduling belongs to `server/comedy/desk.ts` with an injected clock. Future steps are never persisted. Clear/mistrial/shutdown cancel scheduled callbacks. Initial WebSocket snapshots identify reconnects; clients joining mid-sequence ignore its future steps.
 - `npm run rehearsal:check -- /path/to/streamer.mp4` uses a local video fixture and FFmpeg to produce an ignored before/after recording with captured WebAudio. It never changes production assets or your database. Default fixture: `artifacts/streamer-rehearsal/streamer.mp4` when available.
+
+## Connected rehearsal
+
+- `connected:readiness` and `/api/readiness` expose presence/status/counters only. Never include provider error bodies, prompts, raw chat, token values or account IDs. A loaded token or listed model is not proof of a successful integration operation.
+- `connected:check` runs real OpenAI in an isolated SIM_MODE/DRY_RUN app with no Twitch auth client. `--fixture` uses a separately labeled local HTTP fixture and local speech. Neither is a physical-mic test. Recorder evidence must include separate, non-silent media-element speech and WebAudio effect tracks.
+- `connected:observe` attaches read-only to the existing real-adapter app and requires DRY_RUN. Never launch a second refresh client against the same Twitch token file. Only counters from the adapter's incoming EventSub handler count as real chat; simulator/API injections do not.
+- Missing credentials/hardware block connected sign-off. Finish independent preparation, record the matrix in BUILD_LOG.md, and request local configuration/login without asking for secrets in chat. Do not start a broadcast or delete restoration jobs to complete a rehearsal.

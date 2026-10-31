@@ -20,6 +20,16 @@ export class RealObs implements ObsAdapter {
   private closed = false;
   private retry?: ReturnType<typeof setTimeout>;
   private serial: Promise<void> = Promise.resolve();
+  private evidence = {
+    connections: 0,
+    disconnects: 0,
+    sceneEntries: 0,
+    sceneRestores: 0,
+    screenshots: 0,
+  };
+  diagnostics() {
+    return structuredClone(this.evidence);
+  }
   constructor(
     private store: Store,
     private log: (kind: string, text: string) => void,
@@ -29,6 +39,7 @@ export class RealObs implements ObsAdapter {
         "SELECT value_json FROM settings WHERE key='obs_restore_scene'",
       )?.value_json ?? null;
     this.socket.on('ConnectionClosed', () => {
+      this.evidence.disconnects++;
       this.connected = false;
       this.status = 'reconnecting';
       this.schedule();
@@ -44,6 +55,7 @@ export class RealObs implements ObsAdapter {
         this.socket.connect(config.OBS_WS_URL, config.OBS_WS_PASSWORD, { rpcVersion: 1 }),
       );
       this.connected = true;
+      this.evidence.connections++;
       this.status = 'connected';
       this.log('obs', 'OBS WebSocket connected.');
       if (this.original && !this.desiredCourt) await this.restore();
@@ -83,6 +95,7 @@ export class RealObs implements ObsAdapter {
         }
         if (!this.desiredCourt) return;
         await bounded(this.socket.call('SetCurrentProgramScene', { sceneName: scene }));
+        this.evidence.sceneEntries++;
         this.log('obs', `Court scene: ${scene}`);
       } catch {
         this.log('obs', 'Could not switch court scene. The trial continues.');
@@ -99,6 +112,7 @@ export class RealObs implements ObsAdapter {
       }
       try {
         await bounded(this.socket.call('SetCurrentProgramScene', { sceneName: this.original }));
+        this.evidence.sceneRestores++;
         this.original = null;
         this.store.run("DELETE FROM settings WHERE key='obs_restore_scene'");
         this.log('obs', 'Original scene restored.');
@@ -121,6 +135,7 @@ export class RealObs implements ObsAdapter {
           imageCompressionQuality: 75,
         }),
       );
+      this.evidence.screenshots++;
       return result.imageData;
     } catch {
       this.log('obs', 'Screenshot unavailable. Evidence uses the no-photo placeholder.');

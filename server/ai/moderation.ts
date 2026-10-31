@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import type OpenAI from 'openai';
+import type { ProviderEvidence } from './evidence.js';
 const words = readFileSync(new URL('./blocklist.txt', import.meta.url), 'utf8')
   .split(/\r?\n/)
   .filter((s) => s && !s.startsWith('#'));
@@ -10,7 +11,10 @@ export function localSafe(text: string) {
 }
 export class Moderator {
   private cache = new Map<string, boolean>();
-  constructor(private sdk?: OpenAI) {}
+  constructor(
+    private sdk?: OpenAI,
+    private evidence?: ProviderEvidence,
+  ) {}
   async safe(text: string): Promise<boolean> {
     return (await this.safeMany([text]))[0];
   }
@@ -31,13 +35,15 @@ export class Moderator {
               { model: 'omni-moderation-latest', input: batch.map((b) => b.text) },
               { timeout: 1800, signal: AbortSignal.timeout(1800) },
             );
+            this.evidence?.record('moderation', 'success');
             batch.forEach((b, i) => {
               const ok = response.results[i]?.flagged === false;
               result[b.index] = ok;
               if (this.cache.size > 2000) this.cache.clear();
               this.cache.set(b.text, ok);
             });
-          } catch {
+          } catch (error) {
+            this.evidence?.record('moderation', 'failure', error);
             batch.forEach((b) => {
               result[b.index] = false;
             });
