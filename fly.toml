@@ -1,0 +1,27 @@
+# Public demo deployment. Simulator only, no credentials — see the Dockerfile for why.
+app = "chat-v-streamer"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  HOST = "0.0.0.0"
+  PORT = "8787"
+  SIM_MODE = "true"
+  DRY_RUN = "true"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+  # One courtroom, one docket: the app is single-tenant, so never run two machines.
+  processes = ["app"]
+
+# No volume on purpose. The SQLite database is ephemeral, so an idle machine stopping and
+# restarting hands the next visitor a clean docket instead of the last visitor's mess.
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

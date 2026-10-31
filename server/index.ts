@@ -234,7 +234,7 @@ if (twitch.connect)
       log('twitch', 'Stream status unavailable until broadcaster connects.');
     }
   });
-server.listen(config.PORT, '127.0.0.1', () =>
+server.listen(config.PORT, config.HOST, () =>
   log(
     'boot',
     `Court ready at http://localhost:${config.PORT}/panel; overlay /overlay. SIM=${config.SIM_MODE} DRY_RUN=${config.DRY_RUN}`,

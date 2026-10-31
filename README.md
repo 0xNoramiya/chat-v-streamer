@@ -24,7 +24,17 @@ minutes, then puts the original back.
 
 Judge Docket is an owl in a wig. He is not impressed with you.
 
-## Try it in a minute
+## Try it
+
+**Live demo: [chat-v-streamer.fly.dev/panel](https://chat-v-streamer.fly.dev/panel)** — press
+**Run full demo trial** and watch
+[the overlay](https://chat-v-streamer.fly.dev/overlay) in a second tab.
+
+That instance is the simulator with no credentials of any kind: no Twitch tokens, no OpenAI key, so
+the dialogue is the written fallback. Its database is ephemeral and one courtroom is shared by
+everyone, so expect the occasional collision with another visitor.
+
+### Or run it yourself in a minute
 
 No Twitch account, no API key, no microphone.
 

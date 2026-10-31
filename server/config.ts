@@ -8,6 +8,9 @@ const bool = z.preprocess(
 export const config = z
   .object({
     PORT: z.coerce.number().default(8787),
+    // Loopback by default: this is a local-first app and the panel has no authentication.
+    // Only set HOST=0.0.0.0 for a deliberately public demo with no credentials configured.
+    HOST: z.string().default('127.0.0.1'),
     DRY_RUN: bool,
     SIM_MODE: bool,
     OPENAI_API_KEY: z.string().default(''),

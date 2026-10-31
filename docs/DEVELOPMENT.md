@@ -118,3 +118,28 @@ browser-source audio mix, and disconnect/restart recovery. Keep saved restoratio
 rehearsal cannot fulfil a real title-restoration obligation. The rehearsal scripts never enable
 live Twitch actions. Record which rows are authenticated service tests and which are fixtures in
 [BUILD_LOG.md](../BUILD_LOG.md).
+
+## The public demo
+
+`Dockerfile` and `fly.toml` build the simulator-only instance at
+<https://chat-v-streamer.fly.dev>. It exists so judges and curious people can press the button
+without cloning anything.
+
+```sh
+flyctl deploy
+```
+
+It is deliberately not how you run a real court:
+
+- **No credentials, ever.** No Twitch tokens, no OpenAI key, no OBS password. `SIM_MODE` and
+  `DRY_RUN` are pinned true in both the image and `fly.toml`.
+- **No authentication.** The panel is the streamer's control surface and has none, which is fine
+  for a throwaway instance holding no credentials and exactly why one holding credentials must
+  stay on loopback.
+- **No volume.** The SQLite database is ephemeral on purpose, so a machine stopping when idle and
+  restarting on the next request hands the next visitor a clean docket.
+- **One courtroom.** The app is single-tenant, so `min_machines_running = 0` and never more than
+  one machine. Two simultaneous visitors share one docket.
+
+`HOST` defaults to `127.0.0.1` and is only set to `0.0.0.0` by that image. Local behaviour is
+unchanged.
